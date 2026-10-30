@@ -1,0 +1,74 @@
+<section id="azure" data-transition="fade" style="background:#F6F5F0;color:#14213D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:26px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#A94A12">Setup B</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Azure production: run it as a service</h2>
+</div>
+<div style="display:flex;gap:12px;align-items:center">
+<div style="width:300px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px;background:#FDFDFB;padding:24px 28px;border:2px solid #14213D;border-radius:16px">
+<h3 style="font-size:28px;font-weight:600">Jira Cloud</h3>
+<p style="font-size:24px;line-height:1.35;color:#4A5568">Automation rule on new tickets</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#FDFDFB;padding:24px 28px;border:2px solid #14213D;border-radius:16px">
+<h3 style="font-size:28px;font-weight:600">Ticket updates</h3>
+<p style="font-size:24px;line-height:1.35;color:#4A5568">Fields, assignee, comments</p>
+</div>
+</div>
+<div style="width:130px;display:flex;flex-direction:column;gap:14px;align-items:center">
+<p style="font-size:24px;text-align:center;color:#4A5568">key only</p>
+<x-shape kind="arrow-right" style="background:#0B6E6D;width:110px;height:44px"></x-shape>
+<x-shape kind="arrow-left" style="background:#A94A12;width:110px;height:44px"></x-shape>
+<p style="font-size:24px;text-align:center;color:#4A5568">updates</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#E9EDF2;padding:28px;border:2px dashed #8A96A8;border-radius:20px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#4A5568">Our Azure tenant</p>
+<div style="display:flex;gap:16px;align-items:center;background:#14213D;padding:24px 28px;border-radius:14px">
+<x-icon name="Cloud" style="color:#F0A35E;width:44px;height:44px"></x-icon>
+<div style="display:flex;flex-direction:column;gap:4px">
+<p style="font-size:28px;font-weight:600;color:#F6F5F0">Support agent</p>
+<p style="font-size:24px;color:#BFC9D9">Azure Container App</p>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px;background:#FDFDFB;padding:18px 22px;border-radius:12px">
+<p style="font-size:26px;font-weight:600">Key Vault</p>
+<p style="font-size:24px;color:#4A5568">secrets</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;background:#FDFDFB;padding:18px 22px;border-radius:12px">
+<p style="font-size:26px;font-weight:600">Log Analytics</p>
+<p style="font-size:24px;color:#4A5568">audit, alerts</p>
+</div>
+</div>
+</div>
+<div style="width:110px;display:flex;flex-direction:column;align-items:center">
+<x-shape kind="arrow-right" style="background:#A94A12;width:100px;height:44px"></x-shape>
+</div>
+<div style="width:340px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px;background:#FDFDFB;padding:24px 28px;border:1px solid #D8DEE6;border-radius:16px">
+<h3 style="font-size:28px;font-weight:600">Claude API</h3>
+<p style="font-size:24px;line-height:1.35;color:#4A5568">Redacted triage requests</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#FDFDFB;padding:24px 28px;border:1px solid #D8DEE6;border-radius:16px">
+<h3 style="font-size:28px;font-weight:600">M365 mailbox</h3>
+<p style="font-size:24px;line-height:1.35;color:#4A5568">Vendor e-mails via Microsoft Graph</p>
+</div>
+</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+<div style="display:flex;flex-direction:column;gap:8px;border-top:4px solid #A94A12;padding:20px 0 0 0">
+<h3 style="font-size:28px;font-weight:600">Inbound</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Only Atlassian's addresses, with a shared secret on every call</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;border-top:4px solid #A94A12;padding:20px 0 0 0">
+<h3 style="font-size:28px;font-weight:600">Identity</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">A service account limited to the MWP support project</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;border-top:4px solid #A94A12;padding:20px 0 0 0">
+<h3 style="font-size:28px;font-weight:600">E-mail</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">The app can send only from the support mailbox</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 8</p>
+<aside>In production the agent runs inside our own Azure tenant as a small container. Jira notifies it the moment a ticket is created, passing only the ticket key. Secrets live in Key Vault, every decision is logged to Log Analytics for audit and alerting. Outbound, it calls the Claude API and, for vendor-owned components, sends e-mail from a shared support mailbox through Microsoft Graph. The three controls at the bottom are what the platform and M365 teams will set up. For higher volumes we would add a queue in front of the agent; not needed for the pilot.</aside>
+</section>

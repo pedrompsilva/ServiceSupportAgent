@@ -1,0 +1,17 @@
+{
+  "v": 4,
+  "createdOnFiles": {"v": 1, "at": "2026-10-29T20:30:00Z"},
+  "lists": "css",
+  "title": "AI Support Agent – Senior Management Briefing",
+  "order": ["cover", "why", "lifecycle", "architecture", "dataflow", "setups", "laptop", "azure", "autonomy", "controls", "roadmap", "measures", "asks"],
+  "sections": {
+    "s1": {"description": "Why we want an AI support agent and what it does", "start": "cover"},
+    "s2": {"description": "How it works: conceptual architecture and data flow", "start": "architecture"},
+    "s3": {"description": "The two setups: laptop pilot and Azure production", "start": "setups"},
+    "s4": {"description": "Control, rollout, measures and the decisions needed", "start": "autonomy"}
+  },
+  "faces": {
+    "space-grotesk": {"family": "Space Grotesk", "href": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap"},
+    "ibm-plex-sans": {"family": "IBM Plex Sans", "href": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"}
+  }
+}

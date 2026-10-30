@@ -1,0 +1,48 @@
+<section id="dataflow" data-transition="fade" style="background:#F6F5F0;color:#14213D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:56px">
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Data flow for one ticket</h2>
+<div style="display:flex;gap:56px;flex:1">
+<div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:36px 40px">
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">1</p>
+<p style="flex:1;font-size:26px;line-height:1.35">A ticket is raised in Jira, MyWorldPanel support.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">2</p>
+<p style="flex:1;font-size:26px;line-height:1.35">Jira sends only the ticket key to the agent. On a laptop, the agent polls instead.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">3</p>
+<p style="flex:1;font-size:26px;line-height:1.35">The agent reads the ticket and similar past tickets from Jira.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">4</p>
+<p style="flex:1;font-size:26px;line-height:1.35">E-mails, phone numbers and secrets are redacted; the text is marked untrusted.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">5</p>
+<p style="flex:1;font-size:26px;line-height:1.35">Claude returns a structured recommendation: type, severity, component, confidence.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#A94A12">6</p>
+<p style="flex:1;font-size:26px;line-height:1.35">Our code checks it against the rules and the autonomy level allowed.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#A94A12">7</p>
+<p style="flex:1;font-size:26px;line-height:1.35">Allowed actions are applied; the rest are recorded as recommendations.</p>
+</div>
+<div style="display:flex;gap:20px">
+<p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#A94A12">8</p>
+<p style="flex:1;font-size:26px;line-height:1.35">An internal audit comment is posted; vendor e-mail sent if vendor-owned.</p>
+</div>
+</div>
+<div style="width:560px;display:flex;flex-direction:column;gap:24px;background:#14213D;padding:44px 44px;border-radius:20px">
+<x-icon name="Lock" style="color:#F0A35E;width:48px;height:48px"></x-icon>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600;color:#F6F5F0">What leaves the company</h3>
+<p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">To Anthropic:</span></b> redacted ticket text for triage, under our API agreement.</p>
+<p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">To vendors:</span></b> a redacted summary and our ticket reference, only for components they own.</p>
+<p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">Nothing else.</span></b> Jira stays the record; logs keep the decisions for audit.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 5 · Steps 1–5 read and recommend · Steps 6–8 decide and act</p>
+<aside>Walk through left to right, top to bottom. Two points to stress for data protection. First, Jira only sends a ticket key; the agent reads the ticket itself, so nothing in the notification can be spoofed. Second, before any text leaves for Claude or a vendor, personal data and secrets are stripped out. The data-handling sign-off from InfoSec is one of the decisions we ask for at the end.</aside>
+</section>

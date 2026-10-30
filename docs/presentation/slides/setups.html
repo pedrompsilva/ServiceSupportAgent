@@ -1,0 +1,17 @@
+<section id="setups" data-section="The two setups: laptop pilot and Azure production" data-transition="fade" style="background:#E9EDF2;color:#14213D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">Two setups, one agent</h2>
+<table style="font-family:'IBM Plex Sans', Arial, sans-serif;font-size:28px;color:#14213D;background:#FDFDFB;border-radius:16px">
+<tr style="background:#14213D"><th style="width:22%;color:#F6F5F0;padding:18px 28px">&#160;</th><th style="width:39%;color:#F6F5F0">A · Laptop pilot</th><th style="width:39%;color:#F6F5F0">B · Azure production</th></tr>
+<tr><td style="color:#4A5568">Purpose</td><td>Prove accuracy, tune the rules</td><td>Run the service day to day</td></tr>
+<tr style="background:#F3F5F8"><td style="color:#4A5568">Picks up tickets</td><td>On demand, or polls every 2 min</td><td>Jira notifies it within seconds</td></tr>
+<tr><td style="color:#4A5568">Runs as</td><td>The person running it</td><td>Dedicated service account</td></tr>
+<tr style="background:#F3F5F8"><td style="color:#4A5568">Autonomy</td><td>Shadow only: recommends</td><td>Shadow to resolve, per ticket type</td></tr>
+<tr><td style="color:#4A5568">Availability</td><td>While the laptop is on</td><td>Always on, monitored</td></tr>
+<tr style="background:#F3F5F8"><td style="color:#4A5568">Secrets</td><td>Local settings file</td><td>Azure Key Vault</td></tr>
+<tr><td style="color:#4A5568">Vendor e-mail</td><td>Drafts in Jira only</td><td>Sent from a shared mailbox</td></tr>
+<tr style="background:#F3F5F8"><td style="color:#4A5568">Time to start</td><td>Hours</td><td>[2–4] weeks, mostly approvals</td></tr>
+</table>
+<p style="font-size:28px;line-height:1.35;color:#4A5568">Same code and the same rules in both. A proves the agent on our data; B makes it a service.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 6</p>
+<aside>The key message: these are not two products. It is one agent with the same code and configuration, run in two places. The laptop setup is how we prove it on our own data quickly and cheaply, with no infrastructure. The Azure setup is how we run it as a proper service once we trust it. The Azure lead time is an estimate and mostly depends on approvals, not build work.</aside>
+</section>

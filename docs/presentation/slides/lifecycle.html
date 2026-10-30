@@ -1,0 +1,42 @@
+<section id="lifecycle" data-transition="fade" style="background:#F6F5F0;color:#14213D;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:56px">
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:64px;font-weight:600;line-height:1.1">What the agent does with each ticket</h2>
+<div style="display:flex;gap:20px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FDFDFB;padding:32px 28px;border:1px solid #D8DEE6;border-top:8px solid #0B6E6D;border-radius:16px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#0B6E6D">1</p>
+<h3 style="font-size:32px;font-weight:600">Pick up</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">A new ticket in MWP support triggers the agent.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FDFDFB;padding:32px 28px;border:1px solid #D8DEE6;border-top:8px solid #0B6E6D;border-radius:16px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#0B6E6D">2</p>
+<h3 style="font-size:32px;font-weight:600">Triage</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Incident, defect or request; severity; component; possible duplicate.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FDFDFB;padding:32px 28px;border:1px solid #D8DEE6;border-top:8px solid #0B6E6D;border-radius:16px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#0B6E6D">3</p>
+<h3 style="font-size:32px;font-weight:600">Enrich</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Finds similar past tickets and how they were solved.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FDFDFB;padding:32px 28px;border:1px solid #D8DEE6;border-top:8px solid #A94A12;border-radius:16px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#A94A12">4</p>
+<h3 style="font-size:32px;font-weight:600">Attempt fix</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Only pre-approved fixes, such as asking the reporter for missing details.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FDFDFB;padding:32px 28px;border:1px solid #D8DEE6;border-top:8px solid #A94A12;border-radius:16px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#A94A12">5</p>
+<h3 style="font-size:32px;font-weight:600">Route</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Internal team in Jira, or vendor by e-mail, from our ownership matrix.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FDFDFB;padding:32px 28px;border:1px solid #D8DEE6;border-top:8px solid #A94A12;border-radius:16px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:600;color:#A94A12">6</p>
+<h3 style="font-size:32px;font-weight:600">Update</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Audit comment on every ticket; resolves only after a verified fix.</p>
+</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;gap:24px;align-items:center;background:#E9EDF2;padding:36px 48px;border-radius:16px">
+<x-icon name="Trust" style="color:#14213D;width:56px;height:56px"></x-icon>
+<p style="font-size:34px;line-height:1.3;color:#14213D"><b>Claude recommends. Our rules decide.</b> People approve each step until the evidence says the agent can do it alone.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 3 · Teal = understanding the ticket · Orange = acting on it</p>
+<aside>Steps 1 to 3 are about understanding the ticket and carry no risk: the agent only reads. Steps 4 to 6 are actions, and each one is switched on separately, per ticket type, once we have evidence it is accurate. The important design point: Claude only recommends. Assignees, vendor e-mail addresses and which fixes may run all come from our own configuration, not from the AI.</aside>
+</section>
