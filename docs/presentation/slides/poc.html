@@ -6,11 +6,11 @@
 <div style="display:flex;gap:32px">
 <div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FDFDFB;padding:40px 44px;border-radius:16px">
 <h3 style="font-size:32px;font-weight:600;color:#0B6E6D">Working today</h3>
-<div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Agent running on a laptop against ITSM</p></div>
+<div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Running on a laptop, MyWorldpanel incidents only</p></div>
 <div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Jira, Claude and Assets connections verified</p></div>
 <div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Routing model read from Jira Assets</p></div>
 <div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Dry runs on real tickets: nothing written</p></div>
-<div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Code in Git, 63 automated tests</p></div>
+<div style="display:flex;gap:16px;align-items:center"><x-icon name="CheckCircle" style="color:#0B6E6D;width:36px;height:36px"></x-icon><p style="flex:1;font-size:26px;line-height:1.35">Code in Git, 67 automated tests</p></div>
 </div>
 <div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FDFDFB;padding:40px 44px;border-radius:16px">
 <h3 style="font-size:32px;font-weight:600;color:#A94A12">Next</h3>
@@ -22,5 +22,5 @@
 </div>
 </div>
 <p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 9 · Proof of concept runs in dry-run mode on a personal account</p>
-<aside>Where we actually are. The proof of concept runs on a laptop against the ITSM project in dry-run mode, so it reads tickets and shows what it would do, but writes nothing to Jira. It is connected to Jira, Claude and Jira Assets, and it reads the routing model directly from Assets. Today it runs on a personal account and API key; moving it to an approved company account is part of the asks on the last slide. The right-hand list is the next two to four weeks of work, which ends in the backtest numbers that decide whether we go to the live shadow pilot.</aside>
+<aside>Where we actually are. The proof of concept runs on a laptop against the ITSM project in dry-run mode, and only picks up [System] Incident tickets whose Affected Service is MyWorldpanel; everything else is ignored, both in the Jira query and by a second check inside the agent. In dry-run mode it reads tickets and shows what it would do, but writes nothing to Jira. It is connected to Jira, Claude and Jira Assets, and it reads the routing model directly from Assets. Today it runs on a personal account and API key; moving it to an approved company account is part of the asks on the last slide. The right-hand list is the next two to four weeks of work, which ends in the backtest numbers that decide whether we go to the live shadow pilot.</aside>
 </section>
