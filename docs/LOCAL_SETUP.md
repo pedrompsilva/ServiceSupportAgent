@@ -12,6 +12,7 @@ it on one ticket at a time or let it **poll** Jira every couple of minutes.
 | One ticket, shadow | same, `AGENT_DRY_RUN=false` | yes | yes | internal comment only |
 | Poll for new tickets | `python -m agent.cli poll` | yes | yes | per autonomy level |
 | Backtest | `python -m backtest.run_backtest export.csv` | CSV export only | yes | no |
+| Assets discovery | `python -m agent.cli assets-discover --ticket ITSM-123` | yes | no | no |
 
 Keep `AGENT_MAX_AUTONOMY=0` on a laptop. Use Azure for anything beyond shadow mode.
 
@@ -165,6 +166,35 @@ python -m backtest.run_backtest "$HOME\Downloads\Jira.csv" --limit 300 --out res
 ```
 
 Read `results\summary.md`. This is the evidence for whether to widen autonomy later.
+
+### 13. Discover how routing is modelled in Jira Assets (read-only)
+
+ITSM routes by **Affected service**, an Assets object field, with a ticket
+routing mapping held in Assets. To show the agent how that is modelled, run:
+
+```powershell
+python -m agent.cli assets-discover --ticket ITSM-3222
+```
+
+It prints:
+- the Jira fields that look like Affected service or routing fields, with their ids
+- the raw values of those fields on the ticket you name
+- every Assets schema and object type, with object counts
+- for object types whose names suggest services or routing (service, routing,
+  assignment, vendor, supplier, team, group, owner, support): their attributes
+  and 3 sample objects
+
+To detail specific types, use `--types "Business Service,Ticket Routing"`. To
+skip sample objects, add `--samples 0`.
+
+Sample values are **redacted** by default (e-mails, phone numbers, long numbers),
+so the printed output is safe to paste back for the next build step. The full
+report is also saved to `assets_discovery.json`, which Git ignores. `--no-redact`
+is for your own local inspection only.
+
+Needs read access to the Assets schema (the *object viewer* role or higher). A
+403 shows up under "Problems" with that hint, and the rest of the report still
+prints.
 
 ---
 

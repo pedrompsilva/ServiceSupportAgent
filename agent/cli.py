@@ -5,6 +5,7 @@ no Azure needed).
   python -m agent.cli triage-file samples/ticket.json   # Claude only, no Jira
   python -m agent.cli run MWPS-123 [--force]     # full pipeline on one ticket
   python -m agent.cli poll [--interval 120] [--lookback 60]   # watch for new tickets
+  python -m agent.cli assets-discover [--ticket ITSM-123] [--types "Service,Routing"]
 
 Settings come from environment variables, or from a .env file in the
 current folder (see .env.example). AGENT_MAX_AUTONOMY and AGENT_DRY_RUN apply
@@ -141,6 +142,30 @@ def cmd_run(s: Settings, key: str, force: bool, pipeline=None) -> int:
     return 0
 
 
+def cmd_assets_discover(s: Settings, ticket: Optional[str], types: Optional[str], schemas: Optional[str],
+                        samples: int, out: Path, redact: bool, workspace_id: Optional[str],
+                        assets=None) -> int:
+    from .assets_discover import discover, format_report
+
+    if assets is None:
+        if not (s.jira_base_url and s.jira_email and s.jira_api_token):
+            print("JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN are required", file=sys.stderr)
+            return 2
+        from .assets_client import AssetsClient
+        assets = AssetsClient.from_credentials(s.jira_base_url, s.jira_email, s.jira_api_token,
+                                               workspace_id or os.environ.get("ASSETS_WORKSPACE_ID") or None)
+
+    def split(v: Optional[str]) -> Optional[list[str]]:
+        return [x.strip() for x in v.split(",") if x.strip()] if v else None
+
+    report = discover(assets, ticket=ticket.upper() if ticket else None, type_filter=split(types),
+                      schema_filter=split(schemas), samples=samples, redact=redact)
+    print(format_report(report))
+    out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"\nFull report written to {out}" + ("" if redact else "  (NOT redacted — do not share)"))
+    return 0
+
+
 def cmd_poll(s: Settings, interval: int, lookback: int, once: bool = False, pipeline=None) -> int:
     if pipeline is None:
         from .factory import build_pipeline
@@ -178,6 +203,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--interval", type=int, default=120, help="seconds between polls")
     p.add_argument("--lookback", type=int, default=60, help="minutes of new tickets to consider")
     p.add_argument("--once", action="store_true")
+    p = sub.add_parser("assets-discover", help="read-only: show how routing is modelled in Jira Assets")
+    p.add_argument("--ticket", help="also show the Assets/routing field values on this ticket, e.g. ITSM-3222")
+    p.add_argument("--types", help='object types to detail, comma-separated substrings, e.g. "Service,Routing"')
+    p.add_argument("--schemas", help="limit to these schemas (name or key substrings)")
+    p.add_argument("--samples", type=int, default=3, help="sample objects per detailed type (0 = none)")
+    p.add_argument("--out", type=Path, default=Path("assets_discovery.json"))
+    p.add_argument("--workspace-id", help="Assets workspace id (normally discovered automatically)")
+    p.add_argument("--no-redact", action="store_true", help="show sample values unredacted (local use only)")
     args = ap.parse_args(argv)
 
     load_dotenv(args.env_file)
@@ -190,6 +223,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         return cmd_triage_file(s, args.path)
     if args.cmd == "run":
         return cmd_run(s, args.key, args.force)
+    if args.cmd == "assets-discover":
+        return cmd_assets_discover(s, args.ticket, args.types, args.schemas, args.samples, args.out,
+                                   not args.no_redact, args.workspace_id)
     try:
         return cmd_poll(s, args.interval, args.lookback, args.once)
     except KeyboardInterrupt:

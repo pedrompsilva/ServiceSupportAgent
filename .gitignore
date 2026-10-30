@@ -13,3 +13,6 @@ backtest_results/
 results/
 *.csv
 !samples/*.csv
+
+# Assets discovery reports (may contain internal names/contacts)
+assets_discovery*.json
