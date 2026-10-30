@@ -19,9 +19,33 @@ def test_dotenv_loader(tmp_path, monkeypatch):
     assert os.environ["FOO_A"] == "kept" and os.environ["FOO_B"] == "two"
 
 
-def test_poll_jql():
-    jql = cli.poll_jql("MWPS", 60)
-    assert 'project = "MWPS"' in jql and "created >= -60m" in jql
+def test_poll_jql(cfg):
+    jql = cli.poll_jql(cfg, 60)
+    assert 'project = "ITSM"' in jql and 'issuetype in ("[System] Incident")' in jql and "created >= -60m" in jql
+
+
+def test_poll_falls_back_when_jira_rejects_service_filter(cfg, ticket, capsys):
+    import copy
+    from test_assets_mode import F_SERVICE, MWP_INCIDENT, sample_catalog
+    c = copy.deepcopy(cfg)
+    from agent.config import load_config
+    c.assets = load_config(ROOT / "config").assets
+    c.catalog = sample_catalog()
+    t = ticket.model_copy(update={"assets": {F_SERVICE: ["166"]}})
+    jira = FakeJira(t)
+    queries = []
+
+    def search(jql, limit=50):
+        queries.append(jql)
+        if "aqlFunction" in jql:
+            raise RuntimeError("Jira POST /rest/api/3/search/jql -> 400: bad JQL")
+        return [t.key]
+    jira.search_keys = search
+    p = Pipeline(make_settings(0), c, jira, FakeLLM(triage_result(**MWP_INCIDENT)))
+    cli.cmd_poll(make_settings(0), interval=1, lookback=60, once=True, pipeline=p)
+    out = capsys.readouterr().out
+    assert "rejected the service filter" in out and "aqlFunction" not in queries[-1]
+    assert "[Support Agent] Triage" in out
 
 
 def test_triage_file_offline(capsys):

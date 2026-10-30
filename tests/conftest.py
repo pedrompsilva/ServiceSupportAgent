@@ -78,7 +78,7 @@ def ticket():
     return Ticket(
         key="MWPS-101", summary="Rewards not credited after survey completion",
         description="Panelist completed weekly survey on 25 Oct, points not added. Contact jane.doe@example.com",
-        issue_type="Bug", status="Open", priority="Medium", components=[], labels=[],
+        issue_type="[System] Incident", status="Open", priority="Medium", components=[], labels=[],
     )
 
 

@@ -234,6 +234,22 @@ python -m backtest.run_backtest --jql "project = ITSM AND 'Affected Service**' I
 
 Your token needs the Assets read scopes (see the troubleshooting table).
 
+### 15. Pilot scope: which tickets the agent picks up
+
+`config/policy.yaml` → `intake` limits the agent to **[System] Incident** tickets
+whose **Affected Service** is **MyWorldpanel (MWP)**. Tickets with an empty
+Affected Service are excluded. The scope is applied twice:
+
+- **Poll query.** `poll` only asks Jira for those tickets, filtering the Assets field with
+  `aqlFunction()`. If Jira rejects that part of the query, the poller prints a
+  warning and falls back to filtering by issue type only.
+- **Inside the agent.** Every ticket is checked before triage, including a
+  manual `run`. Anything out of scope is skipped with
+  `out of pilot scope: …`, and nothing is written to Jira.
+
+To try the agent on a ticket outside the scope, use
+`python -m agent.cli run ITSM-123 --ignore-scope`.
+
 ---
 
 ## Cost and safety notes

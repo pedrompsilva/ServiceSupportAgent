@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from . import assets_routing, rice, sanitize
+from .intake import in_scope
 from .catalog import category_field, ticket_values
 from .config import AgentConfig
 from .fixes import REGISTRY, FixContext, FixResult
@@ -62,13 +63,19 @@ class Pipeline:
         return level, reasons
 
     # ------------------------------------------------------------------ main
-    def process(self, key: str, actor_account_id: Optional[str] = None, force: bool = False) -> RunReport:
+    def process(self, key: str, actor_account_id: Optional[str] = None, force: bool = False,
+                ignore_scope: bool = False) -> RunReport:
         if self.s.agent_account_id and actor_account_id == self.s.agent_account_id:
             return RunReport(ticket_key=key, effective_level=0, skipped="event caused by the agent itself")
 
         if self.catalog_provider is not None:
             self.cfg.catalog = self.catalog_provider.get()      # cached; reloads after cache_minutes
         ticket = self.jira.get_ticket(key)
+        if not ignore_scope:
+            ok, why = in_scope(ticket, self.cfg)
+            if not ok:
+                log.info(json.dumps({"event": "out_of_scope", "ticket": key, "reason": why}))
+                return RunReport(ticket_key=key, effective_level=0, skipped=f"out of pilot scope: {why}")
         fp = self._fingerprint(ticket)
         prop = self.jira.get_agent_property(key) or {}
         if not force and prop.get("fingerprint") == fp:

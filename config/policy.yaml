@@ -6,6 +6,14 @@
 
 project_key: ITSM            # Jira key of the support project
 
+# Which tickets the agent picks up (pilot scope). Used by the poll query and
+# checked again inside the agent before every triage.
+intake:
+  issue_types: ["[System] Incident"]
+  services: ["MyWorldpanel (MWP)"]     # Affected Service (Jira Assets)
+  exclude_empty_service: true
+  extra_jql: ""                        # optional extra JQL condition
+
 # ---------------------------------------------------------------------------
 # Classification — the agent must pick exactly one.
 # The golden rules are given to the model verbatim; keep them short and

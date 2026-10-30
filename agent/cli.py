@@ -47,9 +47,9 @@ def load_dotenv(path: Path = Path(".env")) -> int:
     return count
 
 
-def poll_jql(project_key: str, lookback_minutes: int) -> str:
-    return (f'project = "{project_key}" AND created >= -{int(lookback_minutes)}m '
-            f'AND statusCategory != Done ORDER BY created ASC')
+def poll_jql(cfg, lookback_minutes: int, with_service: bool = True) -> str:
+    from .intake import poll_jql as build
+    return build(cfg, lookback_minutes, with_service)
 
 
 def _print_report(report) -> None:
@@ -177,11 +177,11 @@ def cmd_triage_file(s: Settings, path: Path, llm=None, provider=None) -> int:
     return 0
 
 
-def cmd_run(s: Settings, key: str, force: bool, pipeline=None) -> int:
+def cmd_run(s: Settings, key: str, force: bool, pipeline=None, ignore_scope: bool = False) -> int:
     if pipeline is None:
         from .factory import build_pipeline
         pipeline = build_pipeline(s)
-    _print_report(pipeline.process(key.upper(), force=force))
+    _print_report(pipeline.process(key.upper(), force=force, ignore_scope=ignore_scope))
     return 0
 
 
@@ -250,11 +250,26 @@ def cmd_poll(s: Settings, interval: int, lookback: int, once: bool = False, pipe
     if pipeline is None:
         from .factory import build_pipeline
         pipeline = build_pipeline(s)
-    jql = poll_jql(pipeline.cfg.project_key, lookback)
+    if pipeline.catalog_provider is not None:
+        pipeline.cfg.catalog = pipeline.catalog_provider.get()
+    with_service = True
+    jql = poll_jql(pipeline.cfg, lookback, with_service)
     print(f"Polling every {interval}s: {jql}\n(Ctrl+C to stop)")
     while True:
         try:
-            for key in pipeline.jira.search_keys(jql):
+            try:
+                keys = pipeline.jira.search_keys(jql)
+            except Exception as exc:
+                if not with_service or " 400" not in f" {exc}" and "400:" not in str(exc):
+                    raise
+                # Jira rejected the Assets (aqlFunction) clause: poll by issue type only;
+                # the agent still checks the Affected Service on every ticket.
+                with_service = False
+                jql = poll_jql(pipeline.cfg, lookback, with_service)
+                print(f"[warn] Jira rejected the service filter ({str(exc)[:160]}); "
+                      f"polling with: {jql}")
+                keys = pipeline.jira.search_keys(jql)
+            for key in keys:
                 try:
                     _print_report(pipeline.process(key))
                 except Exception as exc:
@@ -279,6 +294,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p = sub.add_parser("run", help="process one Jira ticket")
     p.add_argument("key")
     p.add_argument("--force", action="store_true", help="re-run even if already processed")
+    p.add_argument("--ignore-scope", action="store_true", help="process even if outside the pilot scope")
     p = sub.add_parser("poll", help="poll Jira for new tickets")
     p.add_argument("--interval", type=int, default=120, help="seconds between polls")
     p.add_argument("--lookback", type=int, default=60, help="minutes of new tickets to consider")
@@ -305,7 +321,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.cmd == "triage-file":
         return cmd_triage_file(s, args.path)
     if args.cmd == "run":
-        return cmd_run(s, args.key, args.force)
+        return cmd_run(s, args.key, args.force, ignore_scope=args.ignore_scope)
     if args.cmd == "assets-catalog":
         return cmd_assets_catalog(s, args.route)
     if args.cmd == "assets-discover":

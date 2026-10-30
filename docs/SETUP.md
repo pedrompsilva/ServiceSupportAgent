@@ -99,6 +99,12 @@ Project MWPS → Automation → Create rule:
 - **Trigger:** Issue created. (Add a second rule later for *Issue commented*,
   so answers to the agent's questions are re-triaged.)
 - **Condition:** *User condition* → initiator is **not** the agent service account.
+- **Condition:** *JQL condition*, which limits the pilot to MyWorldpanel incidents:
+  ```
+  issuetype = "[System] Incident" AND cf[26042] in aqlFunction("objectTypeId = 45 AND Name IN (\"MyWorldpanel (MWP)\")")
+  ```
+  The agent checks the same scope again (`intake` in `config/policy.yaml`), so a
+  broader rule can't make it act outside the pilot.
 - **Action:** Send web request
   - URL: `https://<container-app-fqdn>/webhook/jira`
   - Method: POST, Body: Custom data

@@ -55,7 +55,7 @@ def acfg_cfg(cfg, acfg):
 
 
 def mwp_ticket(**assets):
-    return Ticket(key="ITSM-3222", summary="client is getting system unavailable",
+    return Ticket(key="ITSM-3222", summary="client is getting system unavailable", issue_type="[System] Incident",
                   description="Panelists in GB see 'system unavailable' in the app since this morning.",
                   priority="Medium", assets=assets)
 
@@ -132,11 +132,12 @@ def test_claude_maps_service_to_component(acfg_cfg):
 
 
 # ---------------------------------------------------------------- pipeline
-def run(acfg_cfg, ticket, result, level):
+def run(acfg_cfg, ticket, result, level, ignore_scope=False):
     policy = acfg_cfg.policy
     policy["autonomy_by_classification"] = {k: level for k in policy["autonomy_by_classification"]}
     jira = FakeJira(ticket)
-    report = Pipeline(make_settings(level), acfg_cfg, jira, FakeLLM(result)).process(ticket.key)
+    report = Pipeline(make_settings(level), acfg_cfg, jira, FakeLLM(result)).process(
+        ticket.key, ignore_scope=ignore_scope)
     return report, jira
 
 
@@ -166,7 +167,8 @@ def test_level1_fills_only_empty_assets_fields(acfg_cfg):
 
 def test_level2_sets_group_and_corrects_service(acfg_cfg):
     ticket = mwp_ticket(**{F_SERVICE: ["200"], F_COUNTRY: ["159"], F_GROUP: ["4900"]})
-    report, jira = run(acfg_cfg, ticket, triage_result(**{**MWP_INCIDENT, "severity": "S3"}), level=2)
+    report, jira = run(acfg_cfg, ticket, triage_result(**{**MWP_INCIDENT, "severity": "S3"}), level=2,
+                       ignore_scope=True)              # ticket says ETL, which is outside the pilot
     raws = [c[5] for c in jira.calls if c[0] == "update_fields" and c[5]]
     assert any(F_SERVICE in r and r[F_SERVICE][0]["objectId"] == "166" for r in raws)
     assert any(F_GROUP in r and r[F_GROUP][0]["objectId"] == "4795" for r in raws)
@@ -182,7 +184,8 @@ def test_no_group_change_when_already_correct(acfg_cfg):
 
 def test_vendor_group_labelled_no_email(acfg_cfg):
     ticket = mwp_ticket(**{F_SERVICE: ["300"], F_COUNTRY: ["161"]})
-    report, jira = run(acfg_cfg, ticket, triage_result(classification="incident", component="ISEC"), level=2)
+    report, jira = run(acfg_cfg, ticket, triage_result(classification="incident", component="ISEC"), level=2,
+                       ignore_scope=True)
     assert report.routing.target == "vendor"
     upd = next(c for c in jira.calls if c[0] == "update_fields" and c[4])
     assert "vendor-assigned" in upd[4]
@@ -238,3 +241,32 @@ def test_load_catalog_and_snapshot_fallback(acfg, tmp_path):
 def test_ticket_values(acfg):
     v = ticket_values(mwp_ticket(**{F_SERVICE: ["166"], F_INC_CAT: ["5592"]}), acfg, sample_catalog())
     assert v["service"] == "MyWorldpanel (MWP)" and v["category"].startswith("System Errors") and v["country"] is None
+
+
+
+# ---------------------------------------------------------------- intake / pilot scope
+from agent.intake import in_scope, poll_jql  # noqa: E402
+
+
+def test_scope_rules(acfg_cfg):
+    assert in_scope(mwp_ticket(**{F_SERVICE: ["166"]}), acfg_cfg)[0]
+    ok, why = in_scope(mwp_ticket(**{F_SERVICE: ["200"]}), acfg_cfg)
+    assert not ok and "ETL" in why
+    ok, why = in_scope(mwp_ticket(), acfg_cfg)
+    assert not ok and "empty" in why
+    ok, why = in_scope(mwp_ticket(**{F_SERVICE: ["166"]}).model_copy(update={"issue_type": "Bug"}), acfg_cfg)
+    assert not ok and "issue type" in why
+
+
+def test_out_of_scope_ticket_is_skipped_without_writes(acfg_cfg):
+    report, jira = run(acfg_cfg, mwp_ticket(**{F_SERVICE: ["200"]}), triage_result(**MWP_INCIDENT), level=2)
+    assert report.skipped.startswith("out of pilot scope") and jira.calls == []
+    report, jira = run(acfg_cfg, mwp_ticket(), triage_result(**MWP_INCIDENT), level=0)
+    assert "Affected Service is empty" in report.skipped and jira.calls == []
+
+
+def test_poll_jql_filters_type_and_service(acfg_cfg):
+    jql = poll_jql(acfg_cfg, 60)
+    assert jql.startswith('project = "ITSM" AND issuetype in ("[System] Incident") AND cf[26042] in aqlFunction(')
+    assert 'Name IN (\\"MyWorldpanel (MWP)\\")' in jql and "created >= -60m" in jql
+    assert "aqlFunction" not in poll_jql(acfg_cfg, 60, with_service=False)
