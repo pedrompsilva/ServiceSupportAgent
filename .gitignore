@@ -16,3 +16,4 @@ results/
 
 # Assets discovery reports (may contain internal names/contacts)
 assets_discovery*.json
+assets_catalog.json

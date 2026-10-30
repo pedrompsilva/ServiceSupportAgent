@@ -38,3 +38,28 @@ def test_poll_once_processes_new_tickets(cfg, ticket, capsys):
     cli.cmd_poll(make_settings(0), interval=1, lookback=60, once=True, pipeline=p)
     assert "[Support Agent] Triage" in capsys.readouterr().out
     assert "comment" in jira.kinds()
+
+
+class _Provider:
+    def get(self, force=False):
+        from test_assets_mode import sample_catalog
+        return sample_catalog()
+
+
+def test_assets_catalog_summary_and_route(capsys):
+    rc = cli.cmd_assets_catalog(make_settings(0), ["MyWorldpanel (MWP)", "Great Britain / United Kingdom"],
+                                provider=_Provider())
+    out = capsys.readouterr().out
+    assert rc == 0 and "3 services" in out and "MyWorldpanel (MWP): 2 categories" in out
+    assert "rule 'MWP GB': 1 countries → L1 - GB (MWP)" in out
+    assert "Route MyWorldpanel (MWP) / Great Britain / United Kingdom: internal" in out
+    assert "vendor_groups not found in Assets: ['3rd Party - Kyndryl']" in out
+
+
+def test_triage_file_in_assets_mode(capsys):
+    from test_assets_mode import MWP_INCIDENT
+    rc = cli.cmd_triage_file(make_settings(0), ROOT / "samples" / "ticket.json",
+                             llm=FakeLLM(triage_result(**{**MWP_INCIDENT, "country": "Great Britain / United Kingdom"})),
+                             provider=_Provider())
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0 and out["routing"]["assignment_group"] == "L1 - GB (MWP)"

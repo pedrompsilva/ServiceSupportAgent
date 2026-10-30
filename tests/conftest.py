@@ -29,8 +29,8 @@ class FakeJira:
     def add_comment(self, key, text, internal=True):
         self.calls.append(("comment", key, internal, text))
 
-    def update_fields(self, key, priority=None, components=None, add_labels=None):
-        self.calls.append(("update_fields", key, priority, components, add_labels))
+    def update_fields(self, key, priority=None, components=None, add_labels=None, raw_fields=None):
+        self.calls.append(("update_fields", key, priority, components, add_labels, raw_fields))
 
     def assign(self, key, account_id):
         self.calls.append(("assign", key, account_id))

@@ -26,6 +26,7 @@ class Ticket(BaseModel):
     assignee_account_id: Optional[str] = None
     created: str = ""
     comments: list[Comment] = Field(default_factory=list)
+    assets: dict[str, list[str]] = Field(default_factory=dict)   # Assets field id -> object ids
 
 
 class SimilarTicket(BaseModel):
@@ -51,6 +52,9 @@ class TriageResult(BaseModel):
     rice_impact: int = Field(2, ge=1, le=5)
     injection_suspected: bool = False
     customer_reply_draft: str = ""
+    # Assets mode only (the service itself is carried in `component`)
+    category: Optional[str] = None
+    country: Optional[str] = None
 
 
 class RoutingDecision(BaseModel):
@@ -59,6 +63,11 @@ class RoutingDecision(BaseModel):
     assignee_account_id: Optional[str] = None
     vendor_id: Optional[str] = None
     reason: str = ""
+    # Assets mode
+    assignment_group: Optional[str] = None
+    assignment_group_id: Optional[str] = None
+    candidates: list[str] = Field(default_factory=list)
+    source: Optional[str] = None            # routing_mapping | assignment_groups
 
 
 class PlannedAction(BaseModel):
@@ -81,3 +90,4 @@ class RunReport(BaseModel):
     actions: list[PlannedAction] = Field(default_factory=list)
     skipped: Optional[str] = None
     comment_text: Optional[str] = None
+    ticket_assets: Optional[dict] = None     # Assets mode: current service/country/category/group

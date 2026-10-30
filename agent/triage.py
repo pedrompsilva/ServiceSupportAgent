@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Protocol
+from typing import Optional, Protocol
 
 from . import sanitize
 from .config import AgentConfig
@@ -22,12 +22,38 @@ class TriagePort(Protocol):
 # ---------------------------------------------------------------------------
 # Prompt construction
 # ---------------------------------------------------------------------------
+def _routing_section(cfg: AgentConfig) -> str:
+    if not cfg.assets_mode:
+        comps = "\n".join(f"- {c}" for c in cfg.components)
+        return f"COMPONENTS (set `component` to one of these exact names, or null if none fits):\n{comps}"
+    cat, acfg = cfg.catalog, cfg.assets
+    offered = cat.offered_services(acfg.get("pilot_services") or [])
+    services = "\n".join(
+        f"- {svc.name}" + (f": {svc.description[:200]}" if svc.description else "") for svc in offered)
+    cats = cat.categories_for([svc.id for svc in offered])
+    categories = "\n".join(f"- {c.name} [{', '.join(c.types) or 'any type'}]" for c in cats) or "- (none)"
+    fit = "; ".join(f"{k} → {', '.join(v)}" for k, v in acfg.get("category_type_by_classification", {}).items())
+    return f"""SERVICES (set `service` to one of these exact names, or null if none fits):
+{services}
+
+CATEGORIES (set `category` to one exact name, or null). Choose only a category
+of the chosen service whose type fits the classification ({fit}):
+{categories}
+
+AFFECTED SERVICE AND COUNTRY: the ticket's current Assets fields are listed
+after the ticket content. If an Affected Service is already set, keep it unless
+the ticket text clearly describes a different service; then set `service` to
+that one and say why in reasoning. Set `country` to the ticket's Country if it
+has one; otherwise only to a country the ticket states explicitly, else null."""
+
+
 def system_prompt(cfg: AgentConfig) -> str:
     p = cfg.policy
     classes = "\n".join(f"- {k}: {v['description'].strip()}" for k, v in p["classifications"].items())
     rules = "\n".join(f"- {r}" for r in p.get("golden_rules", []))
     sev = "\n".join(f"- {k}: {v}" for k, v in p["severity"].items())
-    comps = "\n".join(f"- {c}" for c in cfg.components)
+    routing = _routing_section(cfg)
+    unit = "service" if cfg.assets_mode else "component"
     fixes = "\n".join(
         f"- {fid}: {f['description']} (applies to: {', '.join(f.get('applies_to', []))})"
         for fid, f in cfg.enabled_fixes().items()
@@ -55,16 +81,15 @@ GOLDEN RULES:
 SEVERITY:
 {sev}
 
-COMPONENTS (choose one of these exact names, or null if none fits):
-{comps}
+{routing}
 
 FIXES you may suggest (exact id, or null). Suggest only when clearly applicable:
 {fixes}
 
 RICE estimates: reach scale {reach}. Impact scale {impact}.
 
-CONFIDENCE: 0.0–1.0, how sure you are of classification AND component together.
-Be calibrated: use < 0.6 when the ticket is vague or could fit several components.
+CONFIDENCE: 0.0–1.0, how sure you are of classification AND {unit} together.
+Be calibrated: use < 0.6 when the ticket is vague or could fit several {unit}s.
 
 If classification is needs_info, list the specific questions in
 missing_info_questions. duplicate_of must be a key from the similar tickets
@@ -75,7 +100,23 @@ dates, no internal names, no blame on vendors). Personal data in the ticket has
 been redacted to placeholders such as [EMAIL]; keep them as placeholders."""
 
 
-def user_prompt(ticket: Ticket, similar: list[SimilarTicket], max_chars: int) -> str:
+def _assets_block(ticket: Ticket, cfg: AgentConfig) -> str:
+    from .catalog import ticket_values
+
+    v = ticket_values(ticket, cfg.assets, cfg.catalog)
+    lines = [f"Affected Service: {v['service'] or '-'}", f"Country: {v['country'] or '-'}",
+             f"Category: {v['category'] or '-'}", f"Environment: {v['environment'] or '-'}"]
+    offered = {svc.id for svc in cfg.catalog.offered_services(cfg.assets.get("pilot_services") or [])}
+    if v["service_id"] and v["service_id"] not in offered:
+        cats = cfg.catalog.categories_for([v["service_id"]])
+        if cats:
+            lines.append(f"Categories of {v['service']}: " + "; ".join(
+                f"{c.name} [{', '.join(c.types) or 'any type'}]" for c in cats))
+    return "Current Assets fields on the ticket:\n" + "\n".join(lines)
+
+
+def user_prompt(ticket: Ticket, similar: list[SimilarTicket], max_chars: int,
+                cfg: Optional[AgentConfig] = None) -> str:
     comments = "\n".join(f"[{c.created[:10]}] {c.author}: {c.body}" for c in ticket.comments[-10:])
     raw = (
         f"Key: {ticket.key}\nType: {ticket.issue_type}\nStatus: {ticket.status}\n"
@@ -88,10 +129,26 @@ def user_prompt(ticket: Ticket, similar: list[SimilarTicket], max_chars: int) ->
         f"({', '.join(s.components) or '-'}): {sanitize.neutralise_tags(sanitize.redact(s.summary))}"
         for s in similar
     ) or "- none found"
-    return f"<ticket_content>\n{body}\n</ticket_content>\n\nSimilar tickets (from Jira search):\n{sim}"
+    out = f"<ticket_content>\n{body}\n</ticket_content>\n\nSimilar tickets (from Jira search):\n{sim}"
+    if cfg is not None and cfg.assets_mode:
+        out += "\n\n" + _assets_block(ticket, cfg)
+    return out
 
 
 def tool_schema(cfg: AgentConfig) -> dict:
+    schema = _base_tool_schema(cfg)
+    if cfg.assets_mode:
+        props = schema["input_schema"]["properties"]
+        props.pop("component")
+        props["service"] = {"type": ["string", "null"], "description": "exact name from SERVICES"}
+        props["category"] = {"type": ["string", "null"], "description": "exact name from CATEGORIES"}
+        props["country"] = {"type": ["string", "null"], "description": "country name, or null"}
+        req = schema["input_schema"]["required"]
+        req[req.index("component")] = "service"
+    return schema
+
+
+def _base_tool_schema(cfg: AgentConfig) -> dict:
     return {
         "name": TOOL_NAME,
         "description": "Record the triage recommendation for this ticket.",
@@ -155,7 +212,7 @@ class ClaudeTriage:
 
     def triage(self, ticket: Ticket, similar: list[SimilarTicket], cfg: AgentConfig) -> TriageResult:
         max_chars = int(cfg.guardrails.get("max_ticket_chars", 12000))
-        messages = [{"role": "user", "content": user_prompt(ticket, similar, max_chars)}]
+        messages = [{"role": "user", "content": user_prompt(ticket, similar, max_chars, cfg)}]
 
         resp = None
         if self._forced_supported:
@@ -182,7 +239,10 @@ class ClaudeTriage:
         if block is None:
             raise RuntimeError("model did not return a triage tool call")
         log.debug("triage raw: %s", json.dumps(block.input)[:2000])
-        return TriageResult.model_validate(block.input)
+        data = dict(block.input)
+        if "service" in data:                      # Assets mode: the service is the routing unit
+            data["component"] = data.pop("service")
+        return TriageResult.model_validate(data)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +256,9 @@ def validate_triage(t: TriageResult, cfg: AgentConfig, similar: list[SimilarTick
         notes.append(f"unknown classification '{t.classification}' → needs_info")
         t.classification, t.confidence = "needs_info", 0.0
 
-    if t.component is not None and t.component not in cfg.components:
+    if cfg.assets_mode:
+        _validate_assets(t, cfg, notes)
+    elif t.component is not None and t.component not in cfg.components:
         notes.append(f"unknown component '{t.component}' dropped")
         t.component = None
 
@@ -218,3 +280,38 @@ def validate_triage(t: TriageResult, cfg: AgentConfig, similar: list[SimilarTick
             t.suggested_fix_id = None
 
     return t, notes
+
+
+def _validate_assets(t: TriageResult, cfg: AgentConfig, notes: list[str]) -> None:
+    cat, acfg = cfg.catalog, cfg.assets
+    service_id = None
+    if t.component is not None:
+        service_id = cat.service_id(t.component)
+        if service_id is None:
+            notes.append(f"unknown service '{t.component}' dropped")
+            t.component = None
+        else:
+            t.component = cat.services[service_id].name          # canonical spelling
+    if t.country is not None:
+        cid = cat.country_id(t.country)
+        if cid is None:
+            notes.append(f"unknown country '{t.country}' dropped")
+            t.country = None
+        else:
+            t.country = cat.countries[cid]
+    if t.category is not None:
+        cid = cat.category_id(t.category)
+        if cid is None:
+            notes.append(f"unknown category '{t.category}' dropped")
+            t.category = None
+            return
+        c = cat.categories[cid]
+        fits = set(acfg.get("category_type_by_classification", {}).get(t.classification, []))
+        if service_id and c.service_ids and service_id not in c.service_ids:
+            notes.append(f"category '{c.name}' does not belong to {t.component} → dropped")
+            t.category = None
+        elif fits and c.types and not fits & set(c.types):
+            notes.append(f"category '{c.name}' is not a {'/'.join(sorted(fits))} category → dropped")
+            t.category = None
+        else:
+            t.category = c.name

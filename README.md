@@ -43,9 +43,11 @@ personal data; code decides every action.
 | Path | Purpose |
 |---|---|
 | `config/policy.yaml` | Classifications, golden rules, severities, autonomy levels, guardrails, RICE |
-| `config/ownership.yaml` | Component → internal team / vendor matrix, vendor contacts and SLA |
+| `config/assets.yaml` | Routing by Affected Service from Jira Assets: field ids, object types, pilot services, vendor groups |
+| `config/ownership.yaml` | Component → team / vendor matrix (used only when Assets mode is off) |
 | `config/fixes.yaml` | Whitelisted fix catalogue (enable one at a time) |
 | `agent/pipeline.py` | Orchestration and autonomy gating |
+| `agent/catalog.py`, `agent/assets_routing.py` | Assets catalogue (cached) and Service × Country → Assignment Group routing |
 | `agent/triage.py` | Prompt, tool schema, Claude call, output validation |
 | `agent/jira_client.py` | Jira Cloud REST v3 operations |
 | `agent/vendor_email.py` | Vendor hand-off composition and Microsoft Graph sender |

@@ -8,7 +8,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from . import rice, sanitize
+from . import assets_routing, rice, sanitize
+from .catalog import category_field, ticket_values
 from .config import AgentConfig
 from .fixes import REGISTRY, FixContext, FixResult
 from .jira_client import JiraPort
@@ -25,8 +26,9 @@ LEVEL_NAMES = {0: "shadow", 1: "assist", 2: "route", 3: "fix", 4: "resolve"}
 
 class Pipeline:
     def __init__(self, settings: Settings, cfg: AgentConfig, jira: JiraPort, llm: TriagePort,
-                 mailer: Optional[MailerPort] = None):
+                 mailer: Optional[MailerPort] = None, catalog_provider=None):
         self.s, self.cfg, self.jira, self.llm, self.mailer = settings, cfg, jira, llm, mailer
+        self.catalog_provider = catalog_provider
 
     # ------------------------------------------------------------------ helpers
     def _fingerprint(self, ticket: Ticket) -> str:
@@ -64,13 +66,19 @@ class Pipeline:
         if self.s.agent_account_id and actor_account_id == self.s.agent_account_id:
             return RunReport(ticket_key=key, effective_level=0, skipped="event caused by the agent itself")
 
+        if self.catalog_provider is not None:
+            self.cfg.catalog = self.catalog_provider.get()      # cached; reloads after cache_minutes
         ticket = self.jira.get_ticket(key)
         fp = self._fingerprint(ticket)
         prop = self.jira.get_agent_property(key) or {}
         if not force and prop.get("fingerprint") == fp:
             return RunReport(ticket_key=key, effective_level=0, skipped="already processed, no new information")
 
-        similar = self.jira.search_similar(ticket, self.cfg.project_key)
+        try:
+            similar = self.jira.search_similar(ticket, self.cfg.project_key)
+        except Exception as exc:          # similar tickets are context only; never block triage
+            log.warning("similar-ticket search failed for %s: %s", key, exc)
+            similar = []
         raw_triage = self.llm.triage(ticket, similar, self.cfg)
         t, notes = validate_triage(raw_triage, self.cfg, similar)
 
@@ -87,12 +95,20 @@ class Pipeline:
         # it is *acted on* depends on the level (see _plan / _run).
         trustworthy = (t.confidence >= float(self.cfg.guardrails.get("min_confidence_to_act", 0.75))
                        and not injection)
-        decision = route(t, self.cfg, acting_allowed=trustworthy)
+        current = None
+        if self.cfg.assets_mode:
+            cat = self.cfg.catalog
+            current = ticket_values(ticket, self.cfg.assets, cat)
+            service_id = cat.service_id(t.component) or current["service_id"]
+            country_id = current["country_id"] or cat.country_id(t.country)
+            decision = assets_routing.resolve(cat, self.cfg.assets, service_id, country_id, trustworthy)
+        else:
+            decision = route(t, self.cfg, acting_allowed=trustworthy)
 
         report = RunReport(ticket_key=key, effective_level=level, level_reasons=reasons, triage=t,
-                           rice_score=score, rice_band=band, routing=decision)
+                           rice_score=score, rice_band=band, routing=decision, ticket_assets=current)
         vendor_mail: Optional[VendorEmail] = None
-        if decision.target == "vendor":
+        if decision.target == "vendor" and decision.vendor_id:
             vendor_mail = compose(ticket, t, self.cfg.ownership["vendors"][decision.vendor_id], band,
                                   self.s.jira_base_url)
 
@@ -108,12 +124,15 @@ class Pipeline:
                       "fingerprint": fp, "processed_at": datetime.now(timezone.utc).isoformat(),
                       "level": level, "classification": t.classification, "component": t.component,
                       "routing": decision.target, "rice_band": band, "confidence": t.confidence,
+                      "assignment_group": decision.assignment_group,
                   }))
         log.info(json.dumps({"event": "ticket_processed", **report.model_dump(mode="json")}))
         return report
 
     # ------------------------------------------------------------------ planning
     def _plan(self, r: RunReport, ticket: Ticket, t: TriageResult, mail: Optional[VendorEmail]) -> None:
+        if self.cfg.assets_mode:
+            return self._plan_assets(r, ticket, t)
         p, d = self.cfg.policy, r.routing
         labels = [p["labels"]["processed"]]
         if t.confidence < float(self.cfg.guardrails.get("min_confidence_to_act", 0.75)):
@@ -140,6 +159,59 @@ class Pipeline:
                                            detail={"to": mail.to, "cc": mail.cc, "subject": mail.subject}))
             r.actions.append(PlannedAction(kind="transition", min_level=2,
                                            detail={"name": p["transitions"]["waiting_for_vendor"]}))
+        if t.suggested_fix_id:
+            r.actions.append(PlannedAction(kind="run_fix", min_level=3, detail={"fix_id": t.suggested_fix_id}))
+
+    def _plan_assets(self, r: RunReport, ticket: Ticket, t: TriageResult) -> None:
+        p, d, acfg, cat = self.cfg.policy, r.routing, self.cfg.assets, self.cfg.catalog
+        cur, f = r.ticket_assets or {}, acfg["fields"]
+        labels = [p["labels"]["processed"]]
+        if t.confidence < float(self.cfg.guardrails.get("min_confidence_to_act", 0.75)):
+            labels.append(p["labels"]["low_confidence"])
+        if d.target == "human_triage":
+            labels.append(p["human_triage"]["label"])
+        elif d.target == "vendor":
+            labels.append(acfg.get("vendor_label", "vendor-assigned"))
+
+        # Level 1: fill Assets fields that are empty; never overwrite here.
+        set_now: dict = {}
+        raw: dict = {}
+        cat_field = category_field(acfg, t.classification)
+        proposals = [
+            ("Affected Service", f.get("service"), cur.get("service_id"), cat.service_id(t.component), t.component),
+            ("Country", f.get("country"), cur.get("country_id"), cat.country_id(t.country), t.country),
+            ("Category", cat_field, cur.get("category_id"), cat.category_id(t.category), t.category),
+        ]
+        corrections = []
+        for label, field_id, current_id, new_id, new_name in proposals:
+            if not field_id or not new_id:
+                continue
+            if not current_id:
+                set_now[label] = new_name
+                raw[field_id] = [cat.ref(new_id)]
+            elif current_id != new_id:
+                corrections.append((label, field_id, current_id, new_id, new_name))
+
+        fields: dict = {"add_labels": labels}
+        prio = p.get("jira_priority_by_severity", {}).get(t.severity)
+        if prio and prio != ticket.priority:
+            fields["priority"] = prio
+        if set_now:
+            fields["set"] = set_now
+            fields["raw_fields"] = raw
+        r.actions.append(PlannedAction(kind="set_fields", min_level=1, detail=fields))
+
+        # Level 2: change values a person set, and set the assignment group.
+        for label, field_id, current_id, new_id, new_name in corrections:
+            kind = "service" if label == "Affected Service" else "category" if label == "Category" else "country"
+            r.actions.append(PlannedAction(kind="correct_field", min_level=2, detail={
+                "field": label, "from": cat.name_of(kind, current_id) or current_id, "to": new_name,
+                "raw_fields": {field_id: [cat.ref(new_id)]}}))
+        if (d.target != "human_triage" and d.assignment_group_id and f.get("assignment_group")
+                and d.assignment_group_id != cur.get("group_id")):
+            r.actions.append(PlannedAction(kind="set_assignment_group", min_level=2, detail={
+                "group": d.assignment_group, "from": cur.get("group"),
+                "raw_fields": {f["assignment_group"]: [cat.ref(d.assignment_group_id)]}}))
         if t.suggested_fix_id:
             r.actions.append(PlannedAction(kind="run_fix", min_level=3, detail={"fix_id": t.suggested_fix_id}))
 
@@ -170,7 +242,12 @@ class Pipeline:
                 self._run(r, a, lambda: None)
                 continue
             if a.kind == "set_fields":
-                self._run(r, a, lambda a=a: self.jira.update_fields(key, **a.detail))
+                d = a.detail
+                self._run(r, a, lambda d=d: self.jira.update_fields(
+                    key, priority=d.get("priority"), components=d.get("components"),
+                    add_labels=d.get("add_labels"), raw_fields=d.get("raw_fields")))
+            elif a.kind in ("correct_field", "set_assignment_group"):
+                self._run(r, a, lambda a=a: self.jira.update_fields(key, raw_fields=a.detail["raw_fields"]))
             elif a.kind == "assign":
                 self._run(r, a, lambda a=a: self.jira.assign(key, a.detail["account_id"]))
             elif a.kind == "email_vendor":
@@ -202,6 +279,33 @@ class Pipeline:
             self._run(r, a, lambda: self.jira.transition(key, a.detail["name"]))
 
     # ------------------------------------------------------------------ audit comment
+    @staticmethod
+    def _show(detail: dict) -> str:
+        return json.dumps({k: v for k, v in detail.items() if k not in ("result", "raw_fields")},
+                          ensure_ascii=False)
+
+    def _assets_lines(self, r: RunReport) -> list[str]:
+        t, d, cur = r.triage, r.routing, r.ticket_assets or {}
+
+        def pair(label: str, agent: Optional[str], current: Optional[str]) -> str:
+            if current and agent and current != agent:
+                return f"{label}: {agent}  (ticket says {current} — please check)"
+            return f"{label}: {agent or current or 'not identified'}" + ("" if agent or not current else "  (from ticket)")
+
+        lines = [pair("Affected Service", t.component, cur.get("service")),
+                 pair("Country", t.country, cur.get("country")),
+                 pair("Category", t.category, cur.get("category"))]
+        if cur.get("environment"):
+            lines.append(f"Environment: {cur['environment']}")
+        if d.assignment_group:
+            same = " (already set)" if cur.get("group") == d.assignment_group else (
+                f" (currently {cur['group']})" if cur.get("group") else "")
+            lines.append(f"Recommended assignment group: {d.assignment_group}{same}")
+        lines.append(f"Routing: {d.target} ({d.reason})")
+        if d.candidates:
+            lines.append("Candidate groups: " + "; ".join(d.candidates[:10]))
+        return lines
+
     def _summary_comment(self, r: RunReport, mail: Optional[VendorEmail]) -> str:
         t, d = r.triage, r.routing
         done = [a for a in r.actions if a.executed]
@@ -210,11 +314,16 @@ class Pipeline:
             f"[Support Agent] Triage — mode: {LEVEL_NAMES[r.effective_level]} (level {r.effective_level})",
             "",
             f"Classification: {t.classification}   Severity: {t.severity}   Confidence: {t.confidence:.2f}",
-            f"Component: {t.component or 'not identified'}",
-            f"RICE score: {r.rice_score} → band {r.rice_band} (reach {t.rice_reach}, impact {t.rice_impact})",
-            f"Routing: {d.target}" + (f" → {d.vendor_id}" if d.vendor_id else f" → {d.team}" if d.team else "")
-            + f" ({d.reason})",
         ]
+        if r.ticket_assets is not None:
+            lines += self._assets_lines(r)
+        else:
+            lines += [
+                f"Component: {t.component or 'not identified'}",
+                f"Routing: {d.target}" + (f" → {d.vendor_id}" if d.vendor_id else f" → {d.team}" if d.team else "")
+                + f" ({d.reason})",
+            ]
+        lines.append(f"RICE score: {r.rice_score} → band {r.rice_band} (reach {t.rice_reach}, impact {t.rice_impact})")
         if t.duplicate_of:
             lines.append(f"Possible duplicate of: {t.duplicate_of}")
         lines += ["", f"Summary: {t.summary}", "", f"Reasoning: {t.reasoning}"]
@@ -225,11 +334,10 @@ class Pipeline:
         if r.level_reasons:
             lines += ["", "Autonomy limits: " + "; ".join(r.level_reasons)]
         if done:
-            lines += ["", "Actions taken:"] + [f"- {a.kind}: {json.dumps(a.detail, ensure_ascii=False)}" for a in done]
+            lines += ["", "Actions taken:"] + [f"- {a.kind}: {self._show(a.detail)}" for a in done]
         if withheld:
             lines += ["", "Recommended actions (not taken):"] + [
-                f"- {a.kind}: {json.dumps({k: v for k, v in a.detail.items() if k != 'result'}, ensure_ascii=False)}"
-                f" — {a.error or a.skipped_reason}" for a in withheld]
+                f"- {a.kind}: {self._show(a.detail)} — {a.error or a.skipped_reason}" for a in withheld]
         if mail and not any(a.kind == "email_vendor" and a.executed for a in r.actions):
             lines += ["", "Draft vendor e-mail:", f"To: {', '.join(mail.to)}", f"Subject: {mail.subject}", "",
                       mail.body]

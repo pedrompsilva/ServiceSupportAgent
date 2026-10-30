@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -12,11 +12,18 @@ class ConfigError(ValueError):
     pass
 
 
-@dataclass(frozen=True)
+@dataclass
 class AgentConfig:
     policy: dict[str, Any]
     ownership: dict[str, Any]
     fixes: dict[str, Any]
+    assets: Optional[dict[str, Any]] = None     # config/assets.yaml, if enabled
+    catalog: Any = None                         # agent.catalog.Catalog, set at run time
+
+    @property
+    def assets_mode(self) -> bool:
+        """Route by Affected Service from Jira Assets instead of components."""
+        return self.catalog is not None and self.assets is not None
 
     # convenience accessors -------------------------------------------------
     @property
@@ -29,6 +36,9 @@ class AgentConfig:
 
     @property
     def components(self) -> list[str]:
+        """The routing unit the model chooses: services in Assets mode, else components."""
+        if self.assets_mode:
+            return [svc.name for svc in self.catalog.services.values()]
         return list(self.ownership["components"].keys())
 
     @property
@@ -55,6 +65,14 @@ def load_config(config_dir: Path) -> AgentConfig:
         ownership=_load(config_dir / "ownership.yaml"),
         fixes=_load(config_dir / "fixes.yaml"),
     )
+    assets_path = config_dir / "assets.yaml"
+    if assets_path.exists():
+        acfg = _load(assets_path)
+        if acfg.get("enabled"):
+            for key in ("fields", "object_types", "attributes"):
+                if key not in acfg:
+                    raise ConfigError(f"assets.yaml missing '{key}'")
+            cfg.assets = acfg
     validate(cfg)
     return cfg
 

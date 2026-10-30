@@ -196,6 +196,44 @@ Needs read access to the Assets schema (the *object viewer* role or higher). A
 403 shows up under "Problems" with that hint, and the rest of the report still
 prints.
 
+### 14. Route by Affected Service (Assets mode)
+
+With `config/assets.yaml` enabled (the default), the agent routes the way ITSM
+does: by **Affected Service × Country → Assignment Group**, read live from the
+*Service Support* Assets schema. It works like this:
+
+1. **Service:** the ticket's Affected Service is used. If it's empty, Claude
+   picks one from the Assets service list (the `pilot_services`, MyWorldpanel
+   for the PoC). If the text clearly describes a different service, the
+   comment flags it for checking.
+2. **Category:** Claude picks only from categories of that service whose type
+   fits its classification (Incident, Service Request and so on).
+3. **Routing, done by code:** a `routing_mapping` rule matching Service and
+   Country ("Global" matches any country). If no rule matches, the assignment
+   groups' own Service and Country lists are used. If that's still ambiguous,
+   it goes to human triage with the candidate groups listed.
+4. **Writes, by level:** level 1 fills empty Assets fields (Category, Service,
+   Country). Level 2 corrects a differing Service or Category and sets the
+   Assignment Group. Vendors aren't e-mailed: existing automation notifies
+   them. Groups in `vendor_groups` are only labelled `vendor-assigned`.
+
+Check the catalogue loads and test a route:
+
+```powershell
+python -m agent.cli assets-catalog --route "MyWorldpanel (MWP)" "Great Britain / United Kingdom"
+```
+
+The catalogue is cached for 60 minutes and saved to `assets_catalog.json`
+(git-ignored). That copy is used if Assets is unreachable.
+
+Backtest against what agents actually set, straight from Jira:
+
+```powershell
+python -m backtest.run_backtest --jql "project = ITSM AND 'Affected Service**' IS NOT EMPTY AND resolved >= -90d" --limit 100
+```
+
+Your token needs the Assets read scopes (see the troubleshooting table).
+
 ---
 
 ## Cost and safety notes
@@ -213,6 +251,7 @@ prints.
 | `CERTIFICATE_VERIFY_FAILED` | Corporate SSL inspection. Ask IT for the company root CA bundle (`.pem`), then set `SSL_CERT_FILE=C:\path\company-ca.pem` in `.env`. |
 | Connection timeouts | Corporate proxy. Add `HTTPS_PROXY=http://proxy.company:port` to `.env`. |
 | Jira `401` | Email doesn't match the token owner, or the token has expired. |
+| Assets `401 … scope does not match` | Scoped token without Assets scopes. Add the Assets read scopes (object, schema, object type, attribute), or use a classic token with the site URL. |
 | Jira `404` on the ticket | Wrong key, or the account can't browse the project |
 | Jira `400` when commenting | `jsm_internal` used on a non-JSM project. Set `COMMENT_VISIBILITY=role:<Role>`. |
 | Claude `not_found_error` for the model | Check `CLAUDE_MODEL` against the models available to your API key |

@@ -21,7 +21,8 @@ class JiraPort(Protocol):
     def search_similar(self, ticket: Ticket, project_key: str, limit: int = 5) -> list[SimilarTicket]: ...
     def add_comment(self, key: str, text: str, internal: bool = True) -> None: ...
     def update_fields(self, key: str, priority: Optional[str] = None,
-                      components: Optional[list[str]] = None, add_labels: Optional[list[str]] = None) -> None: ...
+                      components: Optional[list[str]] = None, add_labels: Optional[list[str]] = None,
+                      raw_fields: Optional[dict] = None) -> None: ...
     def assign(self, key: str, account_id: Optional[str]) -> None: ...
     def transition(self, key: str, transition_name: str) -> bool: ...
     def get_agent_property(self, key: str) -> Optional[dict]: ...
@@ -36,7 +37,8 @@ def _jql_escape(text: str) -> str:
 
 class JiraClient:
     def __init__(self, base_url: str, email: str, api_token: str,
-                 comment_visibility: str = "jsm_internal", timeout: float = 30.0):
+                 comment_visibility: str = "jsm_internal", timeout: float = 30.0,
+                 extra_fields: Optional[list[str]] = None):
         import httpx  # imported lazily so tests run without it
 
         token = base64.b64encode(f"{email}:{api_token}".encode()).decode()
@@ -47,6 +49,7 @@ class JiraClient:
             timeout=timeout,
         )
         self.comment_visibility = comment_visibility
+        self.extra_fields = [f for f in (extra_fields or []) if f]
 
     # -- helpers --------------------------------------------------------------
     def _req(self, method: str, path: str, **kw) -> Any:
@@ -60,13 +63,32 @@ class JiraClient:
         return self._req("GET", "/rest/api/3/myself")
 
     def search_keys(self, jql: str, limit: int = 50) -> list[str]:
-        data = self._req("POST", "/rest/api/3/search/jql",
-                         json={"jql": jql, "maxResults": limit, "fields": ["created"]})
-        return [i["key"] for i in data.get("issues", [])]
+        """Issue keys for a JQL query, following nextPageToken up to `limit`."""
+        keys: list[str] = []
+        token = None
+        while len(keys) < limit:
+            body = {"jql": jql, "maxResults": min(100, limit - len(keys)), "fields": ["created"]}
+            if token:
+                body["nextPageToken"] = token
+            data = self._req("POST", "/rest/api/3/search/jql", json=body)
+            new = [i["key"] for i in data.get("issues", []) if i["key"] not in keys]
+            keys.extend(new)
+            token = data.get("nextPageToken")
+            if not token or not new or data.get("isLast"):
+                break
+        return keys[:limit]
 
     def get_ticket(self, key: str) -> Ticket:
-        data = self._req("GET", f"/rest/api/3/issue/{key}", params={"fields": ISSUE_FIELDS})
+        fields = ",".join([ISSUE_FIELDS] + self.extra_fields)
+        data = self._req("GET", f"/rest/api/3/issue/{key}", params={"fields": fields})
         f = data.get("fields", {})
+        assets = {}
+        for fid in self.extra_fields:
+            value = f.get(fid)
+            if isinstance(value, list):
+                ids = [str(v["objectId"]) for v in value if isinstance(v, dict) and v.get("objectId")]
+                if ids:
+                    assets[fid] = ids
         comments = [
             Comment(
                 author=(c.get("author") or {}).get("displayName", ""),
@@ -89,6 +111,7 @@ class JiraClient:
             assignee_account_id=(f.get("assignee") or {}).get("accountId"),
             created=f.get("created", ""),
             comments=comments,
+            assets=assets,
         )
 
     def search_similar(self, ticket: Ticket, project_key: str, limit: int = 5) -> list[SimilarTicket]:
@@ -130,8 +153,9 @@ class JiraClient:
         self._req("POST", f"/rest/api/3/issue/{key}/comment", json=body)
 
     def update_fields(self, key: str, priority: Optional[str] = None,
-                      components: Optional[list[str]] = None, add_labels: Optional[list[str]] = None) -> None:
-        payload: dict[str, Any] = {"fields": {}, "update": {}}
+                      components: Optional[list[str]] = None, add_labels: Optional[list[str]] = None,
+                      raw_fields: Optional[dict] = None) -> None:
+        payload: dict[str, Any] = {"fields": dict(raw_fields or {}), "update": {}}
         if priority:
             payload["fields"]["priority"] = {"name": priority}
         if components is not None:

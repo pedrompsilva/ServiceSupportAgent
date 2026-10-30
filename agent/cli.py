@@ -6,6 +6,7 @@ no Azure needed).
   python -m agent.cli run MWPS-123 [--force]     # full pipeline on one ticket
   python -m agent.cli poll [--interval 120] [--lookback 60]   # watch for new tickets
   python -m agent.cli assets-discover [--ticket ITSM-123] [--types "Service,Routing"]
+  python -m agent.cli assets-catalog [--route "SERVICE" "COUNTRY"]
 
 Settings come from environment variables, or from a .env file in the
 current folder (see .env.example). AGENT_MAX_AUTONOMY and AGENT_DRY_RUN apply
@@ -64,12 +65,31 @@ def _print_report(report) -> None:
     print("=" * 78)
 
 
+def _attach_catalog(s: Settings, cfg, provider=None, force: bool = False):
+    """Load the Assets catalogue into cfg (Assets mode). Returns the provider or None."""
+    if not cfg.assets:
+        return None
+    if provider is None:
+        if s.jira_base_url and s.jira_email and s.jira_api_token:
+            from .factory import build_catalog_provider
+            provider = build_catalog_provider(s, cfg.assets)
+        else:
+            from .catalog import Catalog
+            snap = Path(cfg.assets.get("snapshot_file") or "")
+            if snap.name and snap.exists():
+                cfg.catalog = Catalog.from_dict(json.loads(snap.read_text(encoding="utf-8")))
+            return None
+    cfg.catalog = provider.get(force=force)
+    return provider
+
+
 # ---------------------------------------------------------------------------
 def cmd_check(s: Settings) -> int:
     ok = True
     try:
         cfg = load_config(s.config_dir)
-        print(f"[ok]   config loaded — project {cfg.project_key}, {len(cfg.components)} components, "
+        unit = "routing by Affected Service (Assets)" if cfg.assets else f"{len(cfg.components)} components"
+        print(f"[ok]   config loaded — project {cfg.project_key}, {unit}, "
               f"{len(cfg.enabled_fixes())} fixes enabled")
     except Exception as exc:
         print(f"[FAIL] config: {exc}")
@@ -101,17 +121,32 @@ def cmd_check(s: Settings) -> int:
     else:
         print("[skip] ANTHROPIC_API_KEY not set")
 
+    if cfg.assets and s.jira_base_url and s.jira_email and s.jira_api_token:
+        try:
+            _attach_catalog(s, cfg, force=True)
+            c = cfg.catalog
+            print(f"[ok]   Assets catalogue — {len(c.services)} services, {len(c.countries)} countries, "
+                  f"{len(c.categories)} categories, {len(c.groups)} groups, {len(c.mappings)} routing rules")
+        except Exception as exc:
+            ok = False
+            print(f"[FAIL] Assets catalogue: {exc}")
+
     graph = all([s.graph_tenant_id, s.graph_client_id, s.graph_client_secret, s.graph_sender])
     print(f"[info] vendor e-mail sending {'configured' if graph else 'not configured (drafts only)'}")
     return 0 if ok else 1
 
 
-def cmd_triage_file(s: Settings, path: Path, llm=None) -> int:
+def cmd_triage_file(s: Settings, path: Path, llm=None, provider=None) -> int:
     from .rice import band, score
     from .routing import route
     from .triage import validate_triage
 
     cfg = load_config(s.config_dir)
+    try:
+        _attach_catalog(s, cfg, provider)
+    except Exception as exc:
+        print(f"Assets catalogue not available ({exc}); using component routing", file=sys.stderr)
+        cfg.catalog = None
     data = json.loads(path.read_text(encoding="utf-8"))
     ticket = Ticket.model_validate(data["ticket"] if "ticket" in data else data)
     similar = [SimilarTicket.model_validate(x) for x in data.get("similar", [])]
@@ -123,7 +158,15 @@ def cmd_triage_file(s: Settings, path: Path, llm=None) -> int:
         llm = ClaudeTriage(s.anthropic_api_key, s.claude_model)
     t, notes = validate_triage(llm.triage(ticket, similar, cfg), cfg, similar)
     threshold = float(cfg.guardrails.get("min_confidence_to_act", 0.75))
-    decision = route(t, cfg, acting_allowed=t.confidence >= threshold and not t.injection_suspected)
+    allowed = t.confidence >= threshold and not t.injection_suspected
+    if cfg.assets_mode:
+        from .assets_routing import resolve
+        from .catalog import ticket_values
+        cur = ticket_values(ticket, cfg.assets, cfg.catalog)
+        decision = resolve(cfg.catalog, cfg.assets, cfg.catalog.service_id(t.component) or cur["service_id"],
+                           cur["country_id"] or cfg.catalog.country_id(t.country), allowed)
+    else:
+        decision = route(t, cfg, acting_allowed=allowed)
     rc = cfg.policy["rice"]
     sc = score(t.rice_reach, t.rice_impact, t.confidence, rc.get("effort_default_days", 3))
     print(json.dumps({
@@ -166,6 +209,43 @@ def cmd_assets_discover(s: Settings, ticket: Optional[str], types: Optional[str]
     return 0
 
 
+def cmd_assets_catalog(s: Settings, route: Optional[list[str]], provider=None) -> int:
+    from .assets_routing import resolve
+
+    cfg = load_config(s.config_dir)
+    if not cfg.assets:
+        print("Assets mode is not enabled (config/assets.yaml)", file=sys.stderr)
+        return 2
+    _attach_catalog(s, cfg, provider, force=True)
+    c, acfg = cfg.catalog, cfg.assets
+    print(f"Assets catalogue (workspace {c.workspace_id})")
+    print(f"  {len(c.services)} services · {len(c.countries)} countries · {len(c.categories)} categories · "
+          f"{len(c.groups)} assignment groups · {len(c.mappings)} routing rules")
+    offered = c.offered_services(acfg.get("pilot_services") or [])
+    if acfg.get("pilot_services") and not offered:
+        print(f"  ! none of the pilot_services {acfg['pilot_services']} exist in Assets — check spelling")
+    for svc in offered:
+        cats = c.categories_for([svc.id])
+        rules = [m for m in c.mappings if svc.id in m.service_ids]
+        groups = [g for g in c.groups.values() if svc.id in g.service_ids]
+        print(f"\n  {svc.name}: {len(cats)} categories, {len(rules)} routing rules, {len(groups)} groups list it")
+        for m in rules[:25]:
+            print(f"    rule {m.name!r}: {len(m.country_ids)} countries → {c.name_of('group', m.group_id) or '?'}")
+    vendors = [v for v in acfg.get("vendor_groups", []) if not any(g.name == v for g in c.groups.values())]
+    if vendors:
+        print(f"\n  ! vendor_groups not found in Assets: {vendors}")
+    if route:
+        service, country = route
+        d = resolve(c, acfg, c.service_id(service), c.country_id(country), acting_allowed=True)
+        print(f"\nRoute {service} / {country}: {d.target} — {d.reason}")
+        if d.candidates:
+            print("  candidates: " + "; ".join(d.candidates))
+    snap = acfg.get("snapshot_file")
+    if snap:
+        print(f"\nSnapshot saved to {snap}")
+    return 0
+
+
 def cmd_poll(s: Settings, interval: int, lookback: int, once: bool = False, pipeline=None) -> int:
     if pipeline is None:
         from .factory import build_pipeline
@@ -203,6 +283,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--interval", type=int, default=120, help="seconds between polls")
     p.add_argument("--lookback", type=int, default=60, help="minutes of new tickets to consider")
     p.add_argument("--once", action="store_true")
+    p = sub.add_parser("assets-catalog", help="load the Assets routing catalogue and summarise it")
+    p.add_argument("--route", nargs=2, metavar=("SERVICE", "COUNTRY"),
+                   help='test routing, e.g. --route "MyWorldpanel (MWP)" "Great Britain / United Kingdom"')
     p = sub.add_parser("assets-discover", help="read-only: show how routing is modelled in Jira Assets")
     p.add_argument("--ticket", help="also show the Assets/routing field values on this ticket, e.g. ITSM-3222")
     p.add_argument("--types", help='object types to detail, comma-separated substrings, e.g. "Service,Routing"')
@@ -223,6 +306,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return cmd_triage_file(s, args.path)
     if args.cmd == "run":
         return cmd_run(s, args.key, args.force)
+    if args.cmd == "assets-catalog":
+        return cmd_assets_catalog(s, args.route)
     if args.cmd == "assets-discover":
         return cmd_assets_discover(s, args.ticket, args.types, args.schemas, args.samples, args.out,
                                    not args.no_redact, args.workspace_id)

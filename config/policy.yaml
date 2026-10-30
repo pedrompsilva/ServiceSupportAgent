@@ -4,7 +4,7 @@
 # real values (from the MWP A4 Incident/Defect workflow, the defect governance
 # model and the Jira project configuration).
 
-project_key: MWPS            # TO CONFIRM: Jira key of the MyWorldPanel support project
+project_key: ITSM            # Jira key of the support project
 
 # ---------------------------------------------------------------------------
 # Classification — the agent must pick exactly one.

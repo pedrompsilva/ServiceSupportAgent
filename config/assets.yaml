@@ -1,0 +1,63 @@
+# Routing by Affected Service, from Jira Assets (schema "Service Support", key TS).
+# When enabled, this replaces the component-based ownership matrix for triage
+# and routing. Ids come from `python -m agent.cli assets-discover`.
+
+enabled: true
+workspace_id: null            # or set ASSETS_WORKSPACE_ID in .env
+cache_minutes: 60             # how long the catalogue is kept before reloading
+snapshot_file: assets_catalog.json   # local copy, used if Assets can't be reached (git-ignored)
+
+# Jira fields on ITSM tickets (all Assets object fields)
+fields:
+  service: customfield_26042            # Affected Service**
+  country: customfield_26041            # Country**
+  assignment_group: customfield_26661   # Assignment Group**
+  environment: customfield_26595        # Environment** (read only, shown to the model)
+  category:                             # category field depends on the ticket type
+    incident: customfield_26628         # Incident Category
+    defect: customfield_26628
+    service_request: customfield_26695  # Service Request Category
+    question: customfield_26695
+
+# Assets object types (schema TS)
+object_types:
+  service: 45
+  country: 44
+  category: 195
+  assignment_group: 194
+  routing_mapping: 294
+  environment: 228
+
+# Attribute names on those object types
+attributes:
+  service_description: Description of service
+  category_service: Service
+  category_type: Category Type
+  group_services: Service
+  group_countries: Country
+  mapping_services: Service
+  mapping_countries: Country
+  mapping_group: assignment_group
+
+# Category Type values that fit each agent classification
+category_type_by_classification:
+  incident: [Incident]
+  defect: [Defect, Incident]
+  service_request: [Service Request]
+  question: [Service Request]
+
+# Country object used as a wildcard in mappings / groups
+global_country: Global
+
+# Services the model may choose from when a ticket has no Affected Service.
+# Empty = all services. The PoC pilots on MyWorldpanel only.
+pilot_services:
+  - MyWorldpanel (MWP)
+
+# Assignment groups that are external vendors. Used only for labelling and
+# reporting; vendors are already notified by existing Jira automation, so the
+# agent never e-mails them in this mode. TO CONFIRM with the real list.
+vendor_groups:
+  - 3rd Party - Circana
+  - 3rd Party - Kyndryl
+vendor_label: vendor-assigned
