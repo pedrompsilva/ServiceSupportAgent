@@ -223,8 +223,15 @@ def main(argv: Optional[list[str]] = None, llm: Optional[TriagePort] = None, jir
 
     if not args.csv and not args.jql:
         ap.error("give a CSV export or --jql")
+    from agent.cli import load_dotenv
+    load_dotenv(Path(".env"))
     s = Settings.from_env()
     cfg = load_config(s.config_dir)
+    if args.csv and cfg.assets:
+        print("[warn] CSV mode compares Jira components, which ITSM does not use. To compare Affected "
+              "Service, Category and Assignment Group, use --jql instead, e.g.\n"
+              "  python -m backtest.run_backtest --jql \"project = ITSM AND issuetype = '[System] Incident' "
+              "AND resolved >= -90d\" --limit 100", file=sys.stderr)
     if args.jql:
         if jira is None or catalog_provider is None:
             from agent.factory import assets_field_ids, build_catalog_provider
