@@ -3,7 +3,7 @@
 # and routing. Ids come from `python -m agent.cli assets-discover`.
 
 enabled: true
-workspace_id: null            # or set ASSETS_WORKSPACE_ID in .env
+workspace_id: b4a823c2-6cc4-4d0e-8c11-662e54466057   # ASSETS_WORKSPACE_ID in .env overrides
 cache_minutes: 60             # how long the catalogue is kept before reloading
 snapshot_file: assets_catalog.json   # local copy, used if Assets can't be reached (git-ignored)
 

@@ -24,7 +24,7 @@ def build_catalog_provider(s: Settings, acfg: dict):
     from .assets_client import AssetsClient
     from .catalog import CatalogProvider
 
-    wid = acfg.get("workspace_id") or os.environ.get("ASSETS_WORKSPACE_ID") or None
+    wid = os.environ.get("ASSETS_WORKSPACE_ID") or acfg.get("workspace_id") or None
     assets = AssetsClient.from_credentials(s.jira_base_url, s.jira_email, s.jira_api_token, wid)
     snap = acfg.get("snapshot_file")
     return CatalogProvider(assets, acfg, Path(snap) if snap else None)
