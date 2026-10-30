@@ -1,0 +1,15 @@
+# Secrets — never commit
+.env
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Local outputs (may contain ticket data)
+backtest_results/
+results/
+*.csv
+!samples/*.csv

@@ -1,0 +1,120 @@
+# MyWorldPanel Support Agent — triage & autonomy policy
+# ---------------------------------------------------------------------------
+# Everything marked "TO CONFIRM" is a placeholder to be replaced with your
+# real values (from the MWP A4 Incident/Defect workflow, the defect governance
+# model and the Jira project configuration).
+
+project_key: MWPS            # TO CONFIRM: Jira key of the MyWorldPanel support project
+
+# ---------------------------------------------------------------------------
+# Classification — the agent must pick exactly one.
+# The golden rules are given to the model verbatim; keep them short and
+# unambiguous. TO CONFIRM against the A4 decision workflow.
+# ---------------------------------------------------------------------------
+classifications:
+  incident:
+    description: >
+      Live service is degraded or unavailable for panelists, clients or internal
+      users right now (outage, data not flowing, app crashing for many users).
+      Restoring service is the priority; root cause comes later.
+  defect:
+    description: >
+      The system behaves differently from its specification or agreed behaviour,
+      but service is not currently interrupted. Includes defects QA raises after
+      PROD testing.
+  service_request:
+    description: >
+      A request for a standard change or action (access, data extract, config
+      change, account change) — nothing is broken.
+  question:
+    description: >
+      The reporter needs information or guidance only.
+  needs_info:
+    description: >
+      Not enough information to classify. The agent lists the specific
+      questions the reporter must answer.
+  duplicate:
+    description: >
+      Same problem as an existing open ticket (give its key).
+
+golden_rules:
+  - "If users are impacted right now and there is no workaround, it is an incident, even if the cause is a known defect."
+  - "A defect needs a reproducible gap between expected and actual behaviour; a vague complaint is needs_info."
+  - "Never classify as duplicate unless an open ticket with the same symptom and the same component is in the similar-tickets list."
+  - "When in doubt between incident and defect, choose incident and lower the confidence."
+
+# Severity definitions (mapped to Jira priority names below).
+severity:
+  S1: "Critical — service down or data loss for a whole market/client; no workaround."
+  S2: "High — major function impaired for many users, or one key client; workaround painful."
+  S3: "Medium — limited impact or reasonable workaround."
+  S4: "Low — cosmetic, minor, or single user with workaround."
+
+jira_priority_by_severity:   # TO CONFIRM: your Jira priority scheme names
+  S1: Highest
+  S2: High
+  S3: Medium
+  S4: Low
+
+# Jira issue type each classification corresponds to (used by the backtest to
+# compare the agent's call with what your team actually did).
+issue_type_by_classification:   # TO CONFIRM
+  incident: Incident
+  defect: Bug
+  service_request: Service Request
+  question: Question
+  needs_info: null
+  duplicate: null
+
+# ---------------------------------------------------------------------------
+# Autonomy
+#   0 shadow  : internal comment with recommendation only
+#   1 assist  : + set priority, components, labels
+#   2 route   : + assign internally / email vendor / transition to waiting
+#   3 fix     : + execute whitelisted fixes
+#   4 resolve : + resolve after a verified fix
+# Effective level = min(AGENT_MAX_AUTONOMY env cap, level for classification,
+#                       caps from guardrails below)
+# ---------------------------------------------------------------------------
+autonomy_by_classification:
+  incident: 0
+  defect: 0
+  service_request: 0
+  question: 0
+  needs_info: 0
+  duplicate: 0
+
+guardrails:
+  min_confidence_to_act: 0.75        # below this → level capped at 0 and routed to human triage
+  severity_cap:                      # never act above this level on high severities
+    S1: 0                            # S1 always goes to a human first
+    S2: 1
+  injection_suspected_cap: 0         # ticket text looked like instructions to the agent
+  max_ticket_chars: 12000            # truncate summary+description+comments beyond this
+
+# Fallback when the agent can't or shouldn't route.
+human_triage:
+  assignee_account_id: null          # TO CONFIRM: service support lead / triage rota account id
+  label: needs-human-triage
+
+labels:
+  processed: ai-triaged
+  low_confidence: ai-low-confidence
+
+# Workflow transition names (looked up by name at run time). TO CONFIRM.
+transitions:
+  waiting_for_vendor: "Waiting for vendor"
+  resolve: "Resolve"
+
+# RICE (modified) — inputs estimated by the agent, weights configurable.
+# Bands: score percentile cut-offs. Calibrate against your current backlog
+# with:  python -m backtest.run_backtest --calibrate-rice <export.csv>
+rice:
+  reach_scale:     {1: "single user", 2: "a team / few users", 3: "one market or client", 4: "several markets", 5: "all users"}
+  impact_scale:    {1: "minimal", 2: "low", 3: "medium", 4: "high", 5: "massive"}
+  effort_default_days: 3
+  bands:              # score >= threshold → band (evaluated top-down)
+    - {band: P1, min_score: 8.0}
+    - {band: P2, min_score: 4.0}
+    - {band: P3, min_score: 1.5}
+    - {band: P4, min_score: 0.0}

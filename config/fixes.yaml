@@ -1,0 +1,20 @@
+# Whitelisted fix catalogue. The model may only *suggest* an id from this
+# list; the code decides whether it runs (autonomy level >= 3, fix enabled,
+# preconditions met). Implementations live in agent/fixes/catalogue.py.
+
+fixes:
+  request_more_info:
+    enabled: true
+    description: "Post a public comment asking the reporter the specific missing questions."
+    applies_to: [needs_info]
+    verification: none
+  rerun_failed_ingestion_job:
+    enabled: false                         # turn on once the endpoint exists
+    description: "Re-trigger a failed data-ingestion job by job id via the ops API."
+    applies_to: [incident, defect]
+    verification: job_status_succeeded
+  reset_panelist_app_session:
+    enabled: false
+    description: "Invalidate a panelist's app session so they re-authenticate."
+    applies_to: [incident, service_request]
+    verification: reporter_confirmation

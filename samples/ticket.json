@@ -1,0 +1,16 @@
+{
+  "ticket": {
+    "key": "MWPS-0001",
+    "summary": "Rewards points not credited after completing weekly survey",
+    "description": "Since Monday several panelists in the UK report that points are not added after completing the weekly survey in the app. Example panelist contacted us from jane.doe@example.com. App version 4.2.1 on Android. The survey shows as completed in their history.",
+    "issue_type": "",
+    "status": "Open",
+    "priority": "",
+    "comments": [
+      {"author": "Service Desk", "body": "Two more panelists reported the same today.", "created": "2026-10-28T10:15:00"}
+    ]
+  },
+  "similar": [
+    {"key": "MWPS-0950", "summary": "Points delayed after survey completion", "status": "Done", "resolution": "Fixed", "components": ["Rewards & Incentives"]}
+  ]
+}

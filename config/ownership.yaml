@@ -1,0 +1,40 @@
+# Component → owner matrix. TO CONFIRM: replace placeholders with the real
+# MyWorldPanel Jira components, internal teams and vendors.
+#
+# owner.type = internal  → assign to assignee_account_id (or leave unassigned
+#                          with the team label if no default assignee)
+# owner.type = vendor    → email the vendor contact; ticket stays with the
+#                          internal coordinator for SLA tracking
+
+components:
+  MWP App - iOS:
+    owner: {type: vendor, vendor: app_vendor}
+    coordinator_account_id: null          # internal person who tracks the vendor
+  MWP App - Android:
+    owner: {type: vendor, vendor: app_vendor}
+    coordinator_account_id: null
+  Panelist Portal:
+    owner: {type: internal, team: web-team, assignee_account_id: null}
+  Rewards & Incentives:
+    owner: {type: vendor, vendor: rewards_vendor}
+    coordinator_account_id: null
+  Data Ingestion:
+    owner: {type: internal, team: data-team, assignee_account_id: null}
+  PanelMaster:
+    owner: {type: internal, team: release-mgmt, assignee_account_id: null}
+  Access & Accounts:
+    owner: {type: internal, team: service-support, assignee_account_id: null}
+
+vendors:
+  app_vendor:
+    display_name: "App Vendor (placeholder)"
+    to: ["support@app-vendor.example"]
+    cc: []
+    sla_days: 90                 # from the production defect governance model
+    reference_label: vendor-app
+  rewards_vendor:
+    display_name: "Rewards Vendor (placeholder)"
+    to: ["helpdesk@rewards-vendor.example"]
+    cc: []
+    sla_days: 90
+    reference_label: vendor-rewards
