@@ -11,7 +11,7 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:6px;background:#FDFDFB;padding:24px 28px;border:2px solid #14213D;border-radius:16px">
 <h3 style="font-size:28px;font-weight:600">Ticket updates</h3>
-<p style="font-size:24px;line-height:1.35;color:#4A5568">Fields, assignee, comments</p>
+<p style="font-size:24px;line-height:1.35;color:#4A5568">Fields, assignment group, comments</p>
 </div>
 </div>
 <div style="width:130px;display:flex;flex-direction:column;gap:14px;align-items:center">
@@ -49,8 +49,8 @@
 <p style="font-size:24px;line-height:1.35;color:#4A5568">Redacted triage requests</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:6px;background:#FDFDFB;padding:24px 28px;border:1px solid #D8DEE6;border-radius:16px">
-<h3 style="font-size:28px;font-weight:600">M365 mailbox</h3>
-<p style="font-size:24px;line-height:1.35;color:#4A5568">Vendor e-mails via Microsoft Graph</p>
+<h3 style="font-size:28px;font-weight:600">Jira Assets</h3>
+<p style="font-size:24px;line-height:1.35;color:#4A5568">Routing rules, read-only</p>
 </div>
 </div>
 </div>
@@ -62,13 +62,13 @@
 </div>
 <div style="display:flex;flex-direction:column;gap:8px;border-top:4px solid #A94A12;padding:20px 0 0 0">
 <h3 style="font-size:28px;font-weight:600">Identity</h3>
-<p style="font-size:24px;line-height:1.4;color:#4A5568">A service account limited to the MWP support project</p>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">A service account limited to the ITSM project</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:8px;border-top:4px solid #A94A12;padding:20px 0 0 0">
-<h3 style="font-size:28px;font-weight:600">E-mail</h3>
-<p style="font-size:24px;line-height:1.4;color:#4A5568">The app can send only from the support mailbox</p>
+<h3 style="font-size:28px;font-weight:600">Routing data</h3>
+<p style="font-size:24px;line-height:1.4;color:#4A5568">Read-only access to the Assets routing schema</p>
 </div>
 </div>
-<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 8</p>
-<aside>In production the agent runs inside our own Azure tenant as a small container. Jira notifies it the moment a ticket is created, passing only the ticket key. Secrets live in Key Vault, every decision is logged to Log Analytics for audit and alerting. Outbound, it calls the Claude API and, for vendor-owned components, sends e-mail from a shared support mailbox through Microsoft Graph. The three controls at the bottom are what the platform and M365 teams will set up. For higher volumes we would add a queue in front of the agent; not needed for the pilot.</aside>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 10</p>
+<aside>In production the agent runs inside our own Azure tenant as a small container. Jira notifies it the moment a ticket is created, passing only the ticket key. Secrets live in Key Vault, every decision is logged to Log Analytics for audit and alerting. Outbound, it calls the Claude API and reads the routing rules from Jira Assets, cached for an hour. It sends no e-mail: vendors are notified by our existing Jira automation. The three controls at the bottom are what the platform and Jira admin teams will set up. For higher volumes we would add a queue in front of the agent; not needed for the pilot.</aside>
 </section>

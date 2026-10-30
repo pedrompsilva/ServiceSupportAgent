@@ -12,7 +12,7 @@
 </div>
 <div style="display:flex;gap:20px">
 <p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">3</p>
-<p style="flex:1;font-size:26px;line-height:1.35">The agent reads the ticket and similar past tickets from Jira.</p>
+<p style="flex:1;font-size:26px;line-height:1.35">The agent reads the ticket, similar past tickets and the routing rules in Jira Assets.</p>
 </div>
 <div style="display:flex;gap:20px">
 <p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">4</p>
@@ -20,7 +20,7 @@
 </div>
 <div style="display:flex;gap:20px">
 <p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#0B6E6D">5</p>
-<p style="flex:1;font-size:26px;line-height:1.35">Claude returns a structured recommendation: type, severity, component, confidence.</p>
+<p style="flex:1;font-size:26px;line-height:1.35">Claude returns a structured recommendation: type, severity, service, category, confidence.</p>
 </div>
 <div style="display:flex;gap:20px">
 <p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#A94A12">6</p>
@@ -32,17 +32,17 @@
 </div>
 <div style="display:flex;gap:20px">
 <p style="width:56px;font-family:'Space Grotesk', Arial, sans-serif;font-size:40px;font-weight:600;color:#A94A12">8</p>
-<p style="flex:1;font-size:26px;line-height:1.35">An internal audit comment is posted; vendor e-mail sent if vendor-owned.</p>
+<p style="flex:1;font-size:26px;line-height:1.35">An internal audit comment is posted; the assignment group is recommended or set.</p>
 </div>
 </div>
 <div style="width:560px;display:flex;flex-direction:column;gap:24px;background:#14213D;padding:44px 44px;border-radius:20px">
 <x-icon name="Lock" style="color:#F0A35E;width:48px;height:48px"></x-icon>
 <h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:36px;font-weight:600;color:#F6F5F0">What leaves the company</h3>
 <p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">To Anthropic:</span></b> redacted ticket text for triage, under our API agreement.</p>
-<p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">To vendors:</span></b> a redacted summary and our ticket reference, only for components they own.</p>
+<p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">To vendors:</span></b> nothing new from the agent; our existing Jira automation notifies them.</p>
 <p style="font-size:26px;line-height:1.4;color:#BFC9D9"><b><span style="color:#F6F5F0">Nothing else.</span></b> Jira stays the record; logs keep the decisions for audit.</p>
 </div>
 </div>
-<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 5 · Steps 1–5 read and recommend · Steps 6–8 decide and act</p>
-<aside>Walk through left to right, top to bottom. Two points to stress for data protection. First, Jira only sends a ticket key; the agent reads the ticket itself, so nothing in the notification can be spoofed. Second, before any text leaves for Claude or a vendor, personal data and secrets are stripped out. The data-handling sign-off from InfoSec is one of the decisions we ask for at the end.</aside>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7480">AI Support Agent · 6 · Steps 1–5 read and recommend · Steps 6–8 decide and act</p>
+<aside>Walk through left to right, top to bottom. Two points to stress for data protection. First, Jira only sends a ticket key; the agent reads the ticket itself, so nothing in the notification can be spoofed. Second, before any text leaves for Claude, personal data and secrets are stripped out. The agent sends nothing to vendors; existing automation already handles that. The data-handling sign-off from InfoSec is one of the decisions we ask for at the end.</aside>
 </section>

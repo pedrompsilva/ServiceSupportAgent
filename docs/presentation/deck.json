@@ -3,7 +3,7 @@
   "createdOnFiles": {"v": 1, "at": "2026-10-29T20:30:00Z"},
   "lists": "css",
   "title": "AI Support Agent – Senior Management Briefing",
-  "order": ["cover", "why", "lifecycle", "architecture", "dataflow", "setups", "laptop", "azure", "autonomy", "controls", "roadmap", "measures", "asks"],
+  "order": ["cover", "why", "lifecycle", "architecture", "routing", "dataflow", "setups", "laptop", "poc", "azure", "autonomy", "controls", "roadmap", "measures", "asks"],
   "sections": {
     "s1": {"description": "Why we want an AI support agent and what it does", "start": "cover"},
     "s2": {"description": "How it works: conceptual architecture and data flow", "start": "architecture"},

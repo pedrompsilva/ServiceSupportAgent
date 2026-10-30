@@ -1,6 +1,6 @@
 # Senior management briefing deck
 
-Source of the 13-slide "AI Support Agent – Senior Management Briefing" deck
+Source of the 15-slide "AI Support Agent – Senior Management Briefing" deck
 (Claude Slides format: `deck.json` is the index, `slides/*.html` one file per
 slide, speaker notes in each slide's `<aside>`).
 
