@@ -99,6 +99,8 @@ def fake_assets(overrides=None):
         ("GET", f"{BASE}/objecttype/30/attributes"): ATTRS,
         ("GET", f"{BASE}/objecttype/31/attributes"): ATTRS[:1],
         ("POST", f"{BASE}/object/aql"): {"values": [SERVICE_OBJ], "isLast": True},
+        ("GET", f"{BASE}/object/501"): {"objectKey": "ITS-501", "label": "MyWorldPanel App",
+                                         "objectType": {"id": "30", "name": "Business Service"}},
     }
     routes.update(overrides or {})
     http = FakeHTTP(routes)
@@ -144,3 +146,27 @@ def test_cli_writes_report(tmp_path, capsys):
     rc = cli.cmd_assets_discover(make_settings(0), "itsm-1", None, None, 3, out, True, None, assets=assets)
     assert rc == 0 and json.loads(out.read_text())["workspace_id"] == WID
     assert "Full report written" in capsys.readouterr().out
+
+
+def test_scope_error_falls_back_to_ticket_workspace_and_resolves_objects():
+    scope_401 = Resp(401, {"code": 401, "message": "Unauthorized; scope does not match"})
+    assets, _ = fake_assets({
+        ("GET", f"{JIRA}/rest/servicedeskapi/assets/workspace"): scope_401,
+        ("GET", f"{BASE}/object/501"): {"objectKey": "ITS-501", "label": "MyWorldPanel App",
+                                         "objectType": {"id": "31", "name": "Laptop"}},
+    })
+    r = discover(assets, ticket="ITSM-1")
+    assert r["workspace_id"] == WID and "taken from ITSM-1" in r["notes"][0]
+    obj = r["ticket_objects"][0]
+    assert obj["label"] == "MyWorldPanel App" and obj["field_name"] == "Affected services"
+    types = {t["name"]: t for t in r["schemas"][0]["types"]}
+    assert "attributes" in types["Laptop"]          # detailed because the ticket references it
+    text = format_report(r)
+    assert "What those Assets values are" in text and "(Affected services)" in text
+
+
+def test_scope_hint_when_no_fallback_available():
+    scope_401 = Resp(401, {"code": 401, "message": "Unauthorized; scope does not match"})
+    assets, _ = fake_assets({("GET", f"{JIRA}/rest/servicedeskapi/assets/workspace"): scope_401})
+    r = discover(assets)
+    assert any("Assets read scopes" in e for e in r["errors"])

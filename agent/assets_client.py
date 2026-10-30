@@ -103,6 +103,9 @@ class AssetsClient:
         return GATEWAY.format(wid=self.workspace_id)
 
     # -- reads ----------------------------------------------------------------
+    def object(self, object_id: str) -> dict:
+        return self._req("GET", f"{self.base}/object/{object_id}") or {}
+
     def schemas(self) -> list[dict]:
         return paginate(lambda s, n: self._req("GET", f"{self.base}/objectschema/list",
                                                params={"startAt": s, "maxResults": n}), page_size=50)

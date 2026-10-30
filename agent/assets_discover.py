@@ -25,9 +25,19 @@ MAX_DETAILED_TYPES = 15
 
 def _err(exc: Exception) -> str:
     msg = str(exc)
-    if isinstance(exc, AssetsError) and exc.status in (401, 403):
+    if isinstance(exc, AssetsError) and "scope does not match" in msg:
+        msg += ("  ← your API token is scoped and lacks Assets scopes: create a token that also has the "
+                "Assets read scopes, or use a classic (unscoped) token with the site URL")
+    elif isinstance(exc, AssetsError) and exc.status in (401, 403):
         msg += "  ← check that your account can view this Assets schema (object viewer role)"
     return msg
+
+
+def _cmdb_refs(value) -> list[dict]:
+    """Assets field values look like [{"workspaceId": ..., "id": "wid:123", "objectId": "123"}]."""
+    if isinstance(value, list):
+        return [v for v in value if isinstance(v, dict) and v.get("workspaceId") and v.get("objectId")]
+    return []
 
 
 def _redact(value: Any, redact: bool) -> Any:
@@ -69,6 +79,7 @@ def discover(assets: AssetsClient, *, ticket: Optional[str] = None, type_filter:
         report["errors"].append(f"Jira fields: {_err(exc)}")
 
     # 2. One ticket's values for those fields --------------------------------
+    ticket_refs: dict[str, list[dict]] = {}
     if ticket:
         ids = [f["id"] for f in report["jira_fields"]]
         try:
@@ -76,6 +87,7 @@ def discover(assets: AssetsClient, *, ticket: Optional[str] = None, type_filter:
                                    params={"fields": ",".join(ids + ["summary"])}) or {}
             values = {k: v for k, v in (data.get("fields") or {}).items() if v not in (None, [], "")}
             report["ticket"] = {"key": ticket, "fields": _redact(values, redact)}
+            ticket_refs = {k: _cmdb_refs(v) for k, v in values.items() if _cmdb_refs(v)}
         except Exception as exc:
             report["errors"].append(f"ticket {ticket}: {_err(exc)}")
 
@@ -83,9 +95,35 @@ def discover(assets: AssetsClient, *, ticket: Optional[str] = None, type_filter:
     try:
         report["workspace_id"] = assets.workspace_id
     except Exception as exc:
-        report["errors"].append(f"Assets workspace: {_err(exc)}")
-        report["schemas"] = []
-        return report
+        found = next((r["workspaceId"] for refs in ticket_refs.values() for r in refs), None)
+        if found:
+            assets._wid = found
+            report["workspace_id"] = found
+            report["notes"] = [f"workspace id taken from {ticket}'s Assets fields "
+                               f"(lookup failed: {exc})"]
+        else:
+            report["errors"].append(f"Assets workspace: {_err(exc)}")
+            report["schemas"] = []
+            return report
+
+    # 3b. What the ticket's Assets values actually are
+    referenced_type_ids: set[str] = set()
+    if ticket_refs:
+        names = {f["id"]: f["name"] for f in report.get("jira_fields", [])}
+        resolved = []
+        for field_id, refs in ticket_refs.items():
+            for ref in refs:
+                try:
+                    obj = assets.object(ref["objectId"])
+                    ot = obj.get("objectType") or {}
+                    referenced_type_ids.add(str(ot.get("id")))
+                    resolved.append({"field": field_id, "field_name": names.get(field_id, ""),
+                                     "object_id": ref["objectId"], "key": obj.get("objectKey"),
+                                     "label": obj.get("label"), "object_type": ot.get("name"),
+                                     "object_type_id": ot.get("id")})
+                except Exception as exc:
+                    report["errors"].append(f"object {ref['objectId']} ({field_id}): {_err(exc)}")
+        report["ticket_objects"] = resolved
 
     try:
         schemas = assets.schemas()
@@ -108,7 +146,8 @@ def discover(assets: AssetsClient, *, ticket: Optional[str] = None, type_filter:
         for ot in types:
             t = {"id": ot.get("id"), "name": ot.get("name"), "object_count": ot.get("objectCount"),
                  "parent_id": ot.get("parentObjectTypeId")}
-            if _wanted(ot.get("name", ""), type_filter) and detailed < MAX_DETAILED_TYPES:
+            wanted = _wanted(ot.get("name", ""), type_filter) or str(ot.get("id")) in referenced_type_ids
+            if wanted and detailed < MAX_DETAILED_TYPES:
                 detailed += 1
                 try:
                     attrs = assets.attributes(ot["id"])
@@ -143,9 +182,16 @@ def format_report(r: dict) -> str:
         add("  (none matched)")
 
     if r.get("ticket"):
+        names = {f["id"]: f["name"] for f in r.get("jira_fields", [])}
         add(f"\n=== Values on {r['ticket']['key']} ===")
         for k, v in r["ticket"]["fields"].items():
-            add(f"  {k}: {json.dumps(v, ensure_ascii=False)[:600]}")
+            label = f" ({names[k]})" if k in names else ""
+            add(f"  {k}{label}: {json.dumps(v, ensure_ascii=False)[:600]}")
+    if r.get("ticket_objects"):
+        add("\n=== What those Assets values are ===")
+        for o in r["ticket_objects"]:
+            add(f"  {o['field_name'] or o['field']:<24} → {o['label']}  [{o['object_type']} "
+                f"id {o['object_type_id']}, {o['key']}]")
 
     add(f"\n=== Assets workspace: {r.get('workspace_id', 'not found')} ===")
     for sc in r.get("schemas", []):
@@ -165,6 +211,8 @@ def format_report(r: dict) -> str:
                 for k, v in s["attributes"].items():
                     add(f"       {k}: {json.dumps(v, ensure_ascii=False)[:200]}")
     add("\n(* = detailed below. Choose others with --types \"Name1,Name2\")")
+    for n in r.get("notes", []):
+        add(f"  note: {n}")
     if r.get("errors"):
         add("\n=== Problems ===")
         for e in r["errors"]:
